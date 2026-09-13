@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 
 export async function saveExerciseMeta(
   exerciseId: string,
@@ -23,4 +24,8 @@ export async function saveExerciseMeta(
     .eq("user_id", user.id);
 
   if (error) throw error;
+
+  // 種目一覧・手動追加フォームのキャッシュをクリアして即時反映
+  revalidatePath("/exercises");
+  revalidatePath(`/exercises/${exerciseId}`);
 }
