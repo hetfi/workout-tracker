@@ -1,7 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { DayActions } from "./DayActions";
-import { CATEGORY_COLORS, classifyExercise } from "@/lib/muscleCategory";
+import {
+  classifyExercise,
+  CATEGORY_ORDER,
+  CATEGORY_LABELS,
+  CATEGORY_COLORS,
+  type MuscleCategory,
+} from "@/lib/muscleCategory";
 
 interface PageProps {
   params: Promise<{ date: string }>;
@@ -15,26 +20,6 @@ function formatJapaneseDate(dateStr: string): string {
   return `${y}年${parseInt(m)}月${parseInt(d)}日（${dow}）`;
 }
 
-function SessionStatusBadge({ status }: { status: string }) {
-  if (status === "completed")
-    return (
-      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#CAFF4D]/20 text-[#CAFF4D]">
-        完了
-      </span>
-    );
-  if (status === "in_progress")
-    return (
-      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
-        実施中
-      </span>
-    );
-  return (
-    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/[0.08] text-[#8E8E93]">
-      未開始
-    </span>
-  );
-}
-
 export default async function DayPage({ params }: PageProps) {
   const { date } = await params;
   const supabase = await createClient();
@@ -43,109 +28,204 @@ export default async function DayPage({ params }: PageProps) {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // 1. その日のセッション
   const { data: sessions } = await supabase
     .from("workout_sessions")
-    .select("*")
+    .select("id, title, status, created_at")
     .eq("user_id", user.id)
     .eq("date", date)
     .neq("status", "abandoned")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: true });
 
   const sessionList = sessions ?? [];
 
-  // Fetch exercises for all sessions
+  if (sessionList.length === 0) {
+    return (
+      <div className="py-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <Link href="/home" className="text-[#CAFF4D] text-sm font-medium">
+            ← ホーム
+          </Link>
+        </div>
+        <h1 className="text-xl font-bold text-white">{formatJapaneseDate(date)}</h1>
+        <div className="text-center py-10 text-[#8E8E93]">
+          この日のトレーニング記録はありません
+        </div>
+      </div>
+    );
+  }
+
   const sessionIds = sessionList.map((s) => s.id);
-  const exercisesMap: Record<string, { exercise_name: string; sort_order: number }[]> = {};
 
-  if (sessionIds.length > 0) {
-    const { data: exercises } = await supabase
-      .from("workout_session_exercises")
-      .select("session_id, exercise_name, sort_order")
-      .in("session_id", sessionIds)
-      .order("sort_order");
+  // 2. セッション種目（全セッション分）
+  const { data: sessionExercises } = await supabase
+    .from("workout_session_exercises")
+    .select("id, session_id, exercise_name, sort_order")
+    .in("session_id", sessionIds)
+    .order("sort_order");
 
-    for (const ex of exercises ?? []) {
-      if (!exercisesMap[ex.session_id]) exercisesMap[ex.session_id] = [];
-      exercisesMap[ex.session_id].push(ex);
+  // 3. 完了セット（重量・回数含む）
+  const { data: completedSets } = await supabase
+    .from("workout_sets")
+    .select("session_exercise_id, session_id, weight, reps")
+    .in("session_id", sessionIds)
+    .eq("status", "completed");
+
+  // 4. exercises master でカテゴリ取得
+  const allExerciseNames = [
+    ...new Set((sessionExercises ?? []).map((e) => e.exercise_name)),
+  ];
+  const { data: masterExercises } =
+    allExerciseNames.length > 0
+      ? await supabase
+          .from("exercises")
+          .select("name, muscle_category")
+          .eq("user_id", user.id)
+          .in("name", allExerciseNames)
+      : { data: [] };
+
+  const categoryMap: Record<string, MuscleCategory> = {};
+  for (const ex of masterExercises ?? []) {
+    if (ex.muscle_category)
+      categoryMap[ex.name] = ex.muscle_category as MuscleCategory;
+  }
+  const getCategory = (name: string): MuscleCategory =>
+    categoryMap[name] ?? classifyExercise(name);
+
+  // 5. 種目ごとの完了セット数・総量を集計
+  const setsByExId: Record<string, { weight: number; reps: number }[]> = {};
+  for (const s of completedSets ?? []) {
+    if (!setsByExId[s.session_exercise_id])
+      setsByExId[s.session_exercise_id] = [];
+    setsByExId[s.session_exercise_id].push({
+      weight: Number(s.weight),
+      reps: Number(s.reps),
+    });
+  }
+
+  // 6. 全種目をマージ（0セットは除外）
+  interface MergedExercise {
+    name: string;
+    category: MuscleCategory;
+    completedSets: number;
+    totalVolume: number;
+  }
+  const mergedExercises: MergedExercise[] = [];
+  const seenNames = new Set<string>();
+
+  for (const ex of sessionExercises ?? []) {
+    const exSets = setsByExId[ex.id] ?? [];
+    if (exSets.length === 0) continue; // 0セット除外
+    if (seenNames.has(ex.exercise_name)) {
+      // 同名種目は集計をマージ
+      const existing = mergedExercises.find(
+        (m) => m.name === ex.exercise_name
+      );
+      if (existing) {
+        existing.completedSets += exSets.length;
+        existing.totalVolume += Math.round(
+          exSets.reduce((acc, s) => acc + s.weight * s.reps, 0)
+        );
+      }
+    } else {
+      seenNames.add(ex.exercise_name);
+      mergedExercises.push({
+        name: ex.exercise_name,
+        category: getCategory(ex.exercise_name),
+        completedSets: exSets.length,
+        totalVolume: Math.round(
+          exSets.reduce((acc, s) => acc + s.weight * s.reps, 0)
+        ),
+      });
     }
   }
 
+  // 7. タイトル・ステータス算出
+  const presentCats = [
+    ...new Set(mergedExercises.map((e) => e.category)),
+  ];
+  const title =
+    CATEGORY_ORDER.filter((c) => presentCats.includes(c))
+      .map((c) => CATEGORY_LABELS[c])
+      .join("・") || "トレーニング";
+
+  const hasInProgress = sessionList.some((s) => s.status === "in_progress");
+  const hasNotStarted = sessionList.some((s) => s.status === "not_started");
+  const allCompleted = sessionList.every((s) => s.status === "completed");
+  const overallStatus = hasInProgress
+    ? "in_progress"
+    : hasNotStarted
+    ? "not_started"
+    : allCompleted
+    ? "completed"
+    : "not_started";
+
   return (
     <div className="py-6 space-y-5">
-      {/* Back button */}
+      {/* Back */}
       <div className="flex items-center gap-3">
-        <Link
-          href="/home"
-          className="text-[#CAFF4D] text-sm font-medium"
-        >
+        <Link href="/home" className="text-[#CAFF4D] text-sm font-medium">
           ← ホーム
         </Link>
       </div>
 
-      {/* Date heading */}
-      <div>
-        <h1 className="text-xl font-bold text-white">
-          {formatJapaneseDate(date)}
-        </h1>
-      </div>
+      <h1 className="text-xl font-bold text-white">{formatJapaneseDate(date)}</h1>
 
-      {/* Sessions */}
+      {/* 実績サマリ（マージ済み） */}
+      {mergedExercises.length > 0 && (
+        <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-semibold text-white">{title}</p>
+            {overallStatus === "completed" && (
+              <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-[#CAFF4D]/20 text-[#CAFF4D]">
+                完了
+              </span>
+            )}
+            {overallStatus === "in_progress" && (
+              <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
+                実施中
+              </span>
+            )}
+          </div>
+          <ul className="space-y-1.5">
+            {mergedExercises.map((ex, i) => (
+              <li key={i} className="flex items-center gap-2 text-sm">
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: CATEGORY_COLORS[ex.category] }}
+                />
+                <span className="text-white flex-1 truncate">{ex.name}</span>
+                <span className="text-[#8E8E93] text-xs shrink-0">
+                  {ex.completedSets}セット
+                  {ex.totalVolume > 0 &&
+                    ` (${ex.totalVolume.toLocaleString()}kg)`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* セッション編集リンク */}
       {sessionList.length > 0 && (
-        <div className="space-y-4">
-          {sessionList.map((session) => {
-            const exes = exercisesMap[session.id] ?? [];
-            return (
-              <div
-                key={session.id}
-                className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-white flex-1 truncate">
-                    {session.title}
-                  </p>
-                  <SessionStatusBadge status={session.status} />
-                </div>
-                {exes.length > 0 && (
-                  <ul className="space-y-1.5">
-                    {exes.map((ex, i) => {
-                      const cat = classifyExercise(ex.exercise_name);
-                      return (
-                        <li key={i} className="flex items-center gap-2 text-sm text-white">
-                          <span
-                            style={{ backgroundColor: CATEGORY_COLORS[cat] }}
-                            className="w-2 h-2 rounded-full shrink-0"
-                          />
-                          {ex.exercise_name}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                <Link
-                  href={`/session/${session.id}`}
-                  className="block text-xs text-[#CAFF4D] text-right"
-                >
-                  詳細を見る →
-                </Link>
-              </div>
-            );
-          })}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-[#8E8E93] px-1">
+            セッション（編集）
+          </p>
+          {sessionList.map((s) => (
+            <Link
+              key={s.id}
+              href={`/session/${s.id}`}
+              className="flex items-center justify-between rounded-xl bg-[#2C2C2E] border border-white/[0.08] px-4 py-3"
+            >
+              <span className="text-sm text-white truncate flex-1">{s.title}</span>
+              <span className="text-xs text-[#CAFF4D] shrink-0 ml-2">
+                編集 →
+              </span>
+            </Link>
+          ))}
         </div>
       )}
-
-      {sessionList.length === 0 && (
-        <div className="text-center py-10 text-[#8E8E93]">
-          この日のトレーニング記録はありません
-        </div>
-      )}
-
-      {/* Actions */}
-      <div>
-        <h2 className="text-sm font-medium text-[#8E8E93] mb-3 px-1">
-          この日にトレーニングを追加
-        </h2>
-        <DayActions date={date} />
-      </div>
     </div>
   );
 }

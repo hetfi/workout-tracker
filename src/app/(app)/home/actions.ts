@@ -104,12 +104,25 @@ export async function getCalendarData(
 
   const sessionIds = sessions.map((s) => s.id);
 
-  const { data: exercises } = await supabase
-    .from("workout_session_exercises")
-    .select("session_id, exercise_name")
-    .in("session_id", sessionIds);
+  // 種目と完了セットを同時取得
+  const [{ data: exercises }, { data: completedSets }] = await Promise.all([
+    supabase
+      .from("workout_session_exercises")
+      .select("id, session_id, exercise_name")
+      .in("session_id", sessionIds),
+    supabase
+      .from("workout_sets")
+      .select("session_exercise_id")
+      .in("session_id", sessionIds)
+      .eq("status", "completed"),
+  ]);
 
   if (!exercises) return {};
+
+  // 完了セットがある session_exercise_id のセット
+  const completedExerciseIds = new Set(
+    (completedSets ?? []).map((s) => s.session_exercise_id)
+  );
 
   // Map session_id -> date
   const sessionDateMap: Record<string, string> = {};
@@ -117,9 +130,10 @@ export async function getCalendarData(
     sessionDateMap[s.id] = s.date;
   }
 
-  // Group exercise names by date
+  // Group exercise names by date（完了セットがある種目のみ）
   const dateExercises: Record<string, string[]> = {};
   for (const ex of exercises) {
+    if (!completedExerciseIds.has(ex.id)) continue; // 0セット除外
     const date = sessionDateMap[ex.session_id];
     if (!date) continue;
     if (!dateExercises[date]) dateExercises[date] = [];
