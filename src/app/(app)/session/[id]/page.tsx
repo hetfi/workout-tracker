@@ -539,26 +539,19 @@ export default function SessionPage({
     const totalCount = allSets.length;
     const pendingCount = totalCount - completedCount;
 
-    if (completedCount === 0) {
-      if (!confirm("完了したセットがありません。セッションを終了しますか？")) return;
-      // 0セットの場合はお疲れ様画面をスキップしてホームへ
-      try {
-        await updateSession(sessionId, {
-          status: "completed",
-          completedAt: new Date().toISOString(),
-        });
-      } catch {
-        // Non-critical
-      }
+    // 未完了セットが残っている → 完了扱いにしない
+    if (pendingCount > 0) {
+      const msg =
+        completedCount === 0
+          ? "完了したセットがありません。今日のメニューに戻りますか？"
+          : `まだ${pendingCount}セット完了していません。今日のメニューに戻りますか？`;
+      if (!confirm(msg)) return;
+      // in_progress のままホームへ（ホームで「トレーニングを再開」が表示される）
       router.push("/home");
       return;
     }
 
-    // 未完了セットが残っている場合は確認
-    if (pendingCount > 0) {
-      if (!confirm(`まだ${pendingCount}セット完了していません。終了しますか？`)) return;
-    }
-
+    // 全セット完了 → /complete へ
     router.push(`/session/${sessionId}/complete`);
   };
 
