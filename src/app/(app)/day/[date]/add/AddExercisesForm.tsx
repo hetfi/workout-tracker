@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { getPastExercises, addManualSession, ManualExercise } from "./actions";
+import {
+  getPastExercises,
+  addManualSession,
+  addExercisesToSession,
+  ManualExercise,
+} from "./actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -14,6 +19,7 @@ import {
 
 interface AddExercisesFormProps {
   date: string;
+  sessionId?: string; // 既存セッションに追加する場合
 }
 
 interface SelectedExercise extends ManualExercise {
@@ -36,7 +42,7 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-export function AddExercisesForm({ date }: AddExercisesFormProps) {
+export function AddExercisesForm({ date, sessionId }: AddExercisesFormProps) {
   const [pastExercises, setPastExercises] = useState<
     { id: string; name: string; muscle_category: string | null; is_one_arm: boolean }[]
   >([]);
@@ -50,7 +56,6 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
     getPastExercises().then(setPastExercises);
   }, []);
 
-  // DB の muscle_category を優先、なければ名前で自動分類
   const effectiveCategory = (e: { name: string; muscle_category: string | null }) =>
     (e.muscle_category as MuscleCategory) ?? classifyExercise(e.name);
 
@@ -82,7 +87,11 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
     setSelected((prev) => prev.filter((e) => e.key !== key));
   };
 
-  const updateField = (key: number, field: keyof ManualExercise, value: number | string) => {
+  const updateField = (
+    key: number,
+    field: keyof ManualExercise,
+    value: number | string
+  ) => {
     setSelected((prev) =>
       prev.map((e) => (e.key === key ? { ...e, [field]: value } : e))
     );
@@ -96,7 +105,11 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
     setError(null);
     startTransition(async () => {
       try {
-        await addManualSession(date, selected);
+        if (sessionId) {
+          await addExercisesToSession(sessionId, selected);
+        } else {
+          await addManualSession(date, selected);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "エラーが発生しました");
       }
@@ -115,14 +128,29 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
               onClick={() => setActiveTab(tab.key as typeof activeTab)}
               className={`py-2 px-1 rounded-lg text-sm font-medium transition-colors border ${
                 isActive
-                  ? 'text-black border-transparent'
-                  : 'text-white border-white/[0.08] bg-[#2C2C2E]'
+                  ? "text-black border-transparent"
+                  : "text-white border-white/[0.08] bg-[#2C2C2E]"
               }`}
-              style={isActive && tab.color ? { backgroundColor: tab.color, borderColor: tab.color } :
-                     isActive && !tab.color ? { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'transparent' } : {}}
+              style={
+                isActive && tab.color
+                  ? { backgroundColor: tab.color, borderColor: tab.color }
+                  : isActive && !tab.color
+                  ? {
+                      backgroundColor: "rgba(255,255,255,0.2)",
+                      borderColor: "transparent",
+                    }
+                  : {}
+              }
             >
               {tab.color && (
-                <span className="w-2 h-2 rounded-full inline-block mr-1" style={{ backgroundColor: isActive ? 'rgba(0,0,0,0.4)' : tab.color }} />
+                <span
+                  className="w-2 h-2 rounded-full inline-block mr-1"
+                  style={{
+                    backgroundColor: isActive
+                      ? "rgba(0,0,0,0.4)"
+                      : tab.color,
+                  }}
+                />
               )}
               {tab.label}
             </button>
@@ -187,9 +215,7 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
           {selected.map((ex) => (
             <Card key={ex.key} className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="font-medium text-white flex-1 truncate">
-                  {ex.name}
-                </p>
+                <p className="font-medium text-white flex-1 truncate">{ex.name}</p>
                 <button
                   onClick={() => remove(ex.key)}
                   className="text-[#8E8E93] hover:text-red-400 ml-2 p-1"
@@ -218,7 +244,11 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
                     value={ex.repsMin}
                     min={1}
                     onChange={(e) =>
-                      updateField(ex.key, "repsMin", parseInt(e.target.value, 10) || 1)
+                      updateField(
+                        ex.key,
+                        "repsMin",
+                        parseInt(e.target.value, 10) || 1
+                      )
                     }
                     className="w-full border border-white/[0.12] rounded-lg px-2 py-1 text-center bg-[#3A3A3C] text-white"
                   />
@@ -230,7 +260,11 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
                     value={ex.repsMax}
                     min={1}
                     onChange={(e) =>
-                      updateField(ex.key, "repsMax", parseInt(e.target.value, 10) || 1)
+                      updateField(
+                        ex.key,
+                        "repsMax",
+                        parseInt(e.target.value, 10) || 1
+                      )
                     }
                     className="w-full border border-white/[0.12] rounded-lg px-2 py-1 text-center bg-[#3A3A3C] text-white"
                   />
@@ -241,9 +275,7 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
         </div>
       )}
 
-      {error && (
-        <p className="text-sm text-red-500 px-1">{error}</p>
-      )}
+      {error && <p className="text-sm text-red-500 px-1">{error}</p>}
 
       {/* Submit */}
       <div className="pt-2 pb-safe-bottom">
@@ -255,7 +287,7 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
           loading={isPending}
           className="w-full"
         >
-          トレーニングを開始
+          {sessionId ? "種目を追加する" : "トレーニングを開始"}
         </Button>
       </div>
     </div>

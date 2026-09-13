@@ -35,6 +35,7 @@ export async function getPastExercises(): Promise<
   }));
 }
 
+/** 新規セッションを作成して種目を追加する（今まで通りの動作） */
 export async function addManualSession(
   date: string,
   exercises: ManualExercise[]
@@ -48,9 +49,10 @@ export async function addManualSession(
   if (exercises.length === 0) throw new Error("種目を1つ以上追加してください");
 
   // Derive title from first exercise
-  const title = exercises.length === 1
-    ? exercises[0].name
-    : `${exercises[0].name} 他${exercises.length - 1}種目`;
+  const title =
+    exercises.length === 1
+      ? exercises[0].name
+      : `${exercises[0].name} 他${exercises.length - 1}種目`;
 
   // Create workout plan
   const { data: plan, error: planError } = await supabase
@@ -59,7 +61,9 @@ export async function addManualSession(
       user_id: user.id,
       date,
       title,
-      raw_text: exercises.map((e) => `${e.name} ${e.sets}×${e.repsMin}-${e.repsMax}`).join("\n"),
+      raw_text: exercises
+        .map((e) => `${e.name} ${e.sets}×${e.repsMin}-${e.repsMax}`)
+        .join("\n"),
       status: "active",
       sort_order: 0,
     })
@@ -109,4 +113,44 @@ export async function addManualSession(
   await supabase.from("workout_session_exercises").insert(sessionExercises);
 
   redirect(`/session/${session.id}`);
+}
+
+/** 既存セッションに種目を追加する */
+export async function addExercisesToSession(
+  sessionId: string,
+  exercises: ManualExercise[]
+): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  if (exercises.length === 0) throw new Error("種目を1つ以上追加してください");
+
+  // 現在の sort_order の最大値を取得
+  const { data: existing } = await supabase
+    .from("workout_session_exercises")
+    .select("sort_order")
+    .eq("session_id", sessionId)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+
+  const maxSortOrder = existing?.[0]?.sort_order ?? -1;
+
+  const sessionExercises = exercises.map((e, i) => ({
+    user_id: user.id,
+    session_id: sessionId,
+    exercise_name: e.name,
+    planned_sets: e.sets,
+    planned_reps_min: e.repsMin,
+    planned_reps_max: e.repsMax,
+    rest_seconds: 90,
+    sort_order: maxSortOrder + 1 + i,
+    is_one_arm: e.isOneArm ?? false,
+  }));
+
+  await supabase.from("workout_session_exercises").insert(sessionExercises);
+
+  redirect(`/session/${sessionId}`);
 }

@@ -611,8 +611,20 @@ export default function SessionPage({
         />
       ))}
 
+      {/* Add exercise link */}
+      {session?.status !== "completed" && (
+        <div className="text-center">
+          <a
+            href={`/day/${session?.date}/add?sessionId=${sessionId}`}
+            className="text-sm text-[#8E8E93] hover:text-white transition-colors"
+          >
+            ＋ 種目を追加
+          </a>
+        </div>
+      )}
+
       {/* Complete button */}
-      <div className="pt-4">
+      <div className="pt-2">
         <Button
           variant="primary"
           size="lg"

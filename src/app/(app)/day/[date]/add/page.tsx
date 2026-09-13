@@ -3,18 +3,20 @@ import { AddExercisesForm } from "./AddExercisesForm";
 
 interface PageProps {
   params: Promise<{ date: string }>;
+  searchParams: Promise<{ sessionId?: string }>;
 }
 
-export default async function AddExercisesPage({ params }: PageProps) {
+export default async function AddExercisesPage({ params, searchParams }: PageProps) {
   const { date } = await params;
+  const { sessionId } = await searchParams;
 
   return (
     <div className="py-6 space-y-5">
       {/* Back button */}
       <div className="flex items-center gap-3">
         <Link
-          href={`/day/${date}`}
-          className="text-blue-600 dark:text-blue-400 text-sm font-medium"
+          href={sessionId ? `/session/${sessionId}` : `/day/${date}`}
+          className="text-[#CAFF4D] text-sm font-medium"
         >
           ← 戻る
         </Link>
@@ -22,15 +24,15 @@ export default async function AddExercisesPage({ params }: PageProps) {
 
       {/* Heading */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-          {date} のトレーニングを追加
+        <h1 className="text-xl font-bold text-white">
+          {sessionId ? "種目を追加" : "トレーニングを追加"}
         </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          種目を選んでトレーニングを作成します
+        <p className="text-sm text-[#8E8E93] mt-1">
+          種目を選んで{sessionId ? "追加" : "トレーニングを作成"}します
         </p>
       </div>
 
-      <AddExercisesForm date={date} />
+      <AddExercisesForm date={date} sessionId={sessionId} />
     </div>
   );
 }

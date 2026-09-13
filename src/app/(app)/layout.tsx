@@ -12,11 +12,11 @@ async function NavBar() {
             <path d="M9 21V12h6v9"/>
           </svg>
         </NavItem>
-        <NavItem href="/history" label="実績">
+        <NavItem href="/today" label="今日">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="4" height="18" rx="1"/>
-            <rect x="10" y="8" width="4" height="13" rx="1"/>
-            <rect x="17" y="5" width="4" height="16" rx="1"/>
+            <rect x="3" y="4" width="18" height="17" rx="2"/>
+            <path d="M16 2v4M8 2v4M3 10h18"/>
+            <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>
           </svg>
         </NavItem>
         <NavItem href="/exercises" label="種目">
