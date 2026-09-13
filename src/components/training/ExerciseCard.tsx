@@ -21,6 +21,7 @@ interface ExerciseCardProps {
   onSkipExercise: () => void;
   onDeleteExercise?: () => void;
   onDeleteSet?: (clientId: string) => void;
+  onAddSet?: () => void;
 }
 
 // --- One-arm row sub-component ---
@@ -124,6 +125,7 @@ export function ExerciseCard({
   onSkipExercise,
   onDeleteExercise,
   onDeleteSet,
+  onAddSet,
 }: ExerciseCardProps) {
   // Normal-mode picker state
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -384,6 +386,16 @@ export function ExerciseCard({
           ))
         )}
       </div>
+
+      {/* Add set button */}
+      {onAddSet && !sessionExercise.skipped && (
+        <button
+          onClick={onAddSet}
+          className="w-full text-xs text-[#8E8E93] hover:text-[#CAFF4D] py-2 border border-dashed border-white/[0.12] hover:border-[#CAFF4D]/40 rounded-xl transition-colors"
+        >
+          ＋ セット追加
+        </button>
+      )}
 
       {/* Skip */}
       {!sessionExercise.skipped && !isAllDone && (

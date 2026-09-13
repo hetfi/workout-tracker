@@ -409,6 +409,60 @@ export default function SessionPage({
     [showToast]
   );
 
+  // ---- Handle add set ----
+  const handleAddSet = useCallback(
+    async (exerciseId: string) => {
+      const existingSets = setsMap[exerciseId] ?? [];
+      const maxSetNumber = existingSets.reduce(
+        (max, s) => Math.max(max, s.setNumber),
+        0
+      );
+      const lastSet = existingSets[existingSets.length - 1];
+      const newClientId = crypto.randomUUID();
+      const newSet: WorkoutSet = {
+        id: newClientId,
+        userId: lastSet?.userId ?? "",
+        sessionExerciseId: exerciseId,
+        sessionId,
+        setNumber: maxSetNumber + 1,
+        weight: lastSet?.weight ?? 0,
+        reps: lastSet?.reps ?? 0,
+        status: "pending",
+        completedAt: null,
+        notes: null,
+        clientId: newClientId,
+        side: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      setSetsMap((prev) => {
+        const updated = { ...prev, [exerciseId]: [...(prev[exerciseId] ?? []), newSet] };
+        saveDraft(updated);
+        return updated;
+      });
+
+      // Persist to DB
+      try {
+        await upsertSet({
+          sessionExerciseId: exerciseId,
+          sessionId,
+          setNumber: newSet.setNumber,
+          weight: newSet.weight,
+          reps: newSet.reps,
+          status: "pending",
+          completedAt: null,
+          notes: null,
+          clientId: newClientId,
+          side: null,
+        });
+      } catch {
+        // Non-critical: draft will sync later
+      }
+    },
+    [setsMap, sessionId, saveDraft]
+  );
+
   // ---- Timer callbacks ----
   const handleTimerUpdate = useCallback(
     async (updated: TimerState) => {
@@ -467,8 +521,20 @@ export default function SessionPage({
 
     const allSets = Object.values(setsMap).flat();
     const completedCount = allSets.filter((s) => s.status === "completed").length;
+
     if (completedCount === 0) {
-      if (!confirm("完了したセットがありません。本当に終了しますか？")) return;
+      if (!confirm("完了したセットがありません。セッションを終了しますか？")) return;
+      // 0セットの場合はお疲れ様画面をスキップしてホームへ
+      try {
+        await updateSession(sessionId, {
+          status: "completed",
+          completedAt: new Date().toISOString(),
+        });
+      } catch {
+        // Non-critical
+      }
+      router.push("/home");
+      return;
     }
 
     router.push(`/session/${sessionId}/complete`);
@@ -541,6 +607,7 @@ export default function SessionPage({
           onSkipExercise={() => handleSkipExercise(ex.id)}
           onDeleteExercise={() => handleDeleteExercise(ex.id)}
           onDeleteSet={(clientId) => handleDeleteSet(ex.id, clientId)}
+          onAddSet={() => handleAddSet(ex.id)}
         />
       ))}
 
