@@ -99,14 +99,14 @@ export async function getHistoryDays(
   }
 
   // 種目を session_id でグループ化
-  const exercisesBySession: Record<string, typeof sessionExercises> = {};
+  const exercisesBySession: Record<string, NonNullable<typeof sessionExercises>> = {};
   for (const ex of sessionExercises ?? []) {
     if (!exercisesBySession[ex.session_id]) exercisesBySession[ex.session_id] = [];
     exercisesBySession[ex.session_id].push(ex);
   }
 
   // 日単位でセッションをグループ化
-  const sessionsByDate: Record<string, typeof sessions> = {};
+  const sessionsByDate: Record<string, NonNullable<typeof sessions>> = {};
   for (const s of sessions) {
     if (!sessionsByDate[s.date]) sessionsByDate[s.date] = [];
     sessionsByDate[s.date].push(s);
