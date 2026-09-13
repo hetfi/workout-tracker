@@ -1,0 +1,185 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { getUserSettings, updateUserSettings } from "@/repositories/userSettings";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
+import { useRouter } from "next/navigation";
+import type { UserSettings } from "@/domain/types";
+
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+          {label}
+        </p>
+        {description && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {description}
+          </p>
+        )}
+      </div>
+      <button
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative w-12 h-7 rounded-full transition-colors ${
+          checked ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
+        }`}
+      >
+        <span
+          className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+export default function SettingsPage() {
+  const { showToast } = useToast();
+  const router = useRouter();
+  const [settings, setSettings] = useState<Partial<UserSettings>>({
+    soundEnabled: true,
+    vibrationEnabled: true,
+    browserNotificationEnabled: false,
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getUserSettings().then((s) => {
+      if (s) setSettings(s);
+    });
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateUserSettings({
+        soundEnabled: settings.soundEnabled,
+        vibrationEnabled: settings.vibrationEnabled,
+        browserNotificationEnabled: settings.browserNotificationEnabled,
+      });
+      showToast("設定を保存しました", "success");
+    } catch {
+      showToast("保存に失敗しました", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEnableNotification = async () => {
+    if (!("Notification" in window)) {
+      showToast("このブラウザは通知をサポートしていません", "warning");
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm === "granted") {
+      setSettings((prev) => ({ ...prev, browserNotificationEnabled: true }));
+      showToast("通知が許可されました", "success");
+    } else {
+      showToast("通知が拒否されました", "error");
+    }
+  };
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
+  return (
+    <div className="py-6 space-y-5">
+      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+        設定
+      </h1>
+
+      {/* Notification settings */}
+      <Card className="space-y-4">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+          インターバルタイマー通知
+        </h2>
+        <div className="space-y-3 divide-y divide-gray-100 dark:divide-gray-800">
+          <ToggleRow
+            label="通知音"
+            description="インターバル終了時に音を鳴らす"
+            checked={settings.soundEnabled ?? true}
+            onChange={(v) =>
+              setSettings((prev) => ({ ...prev, soundEnabled: v }))
+            }
+          />
+          <div className="pt-3">
+            <ToggleRow
+              label="バイブレーション"
+              description="対応端末でバイブレーションする"
+              checked={settings.vibrationEnabled ?? true}
+              onChange={(v) =>
+                setSettings((prev) => ({ ...prev, vibrationEnabled: v }))
+              }
+            />
+          </div>
+          <div className="pt-3">
+            <ToggleRow
+              label="ブラウザ通知"
+              description="バックグラウンドでも通知を受け取る（iPhone Safariは制約あり）"
+              checked={settings.browserNotificationEnabled ?? false}
+              onChange={(v) => {
+                if (v) {
+                  handleEnableNotification();
+                } else {
+                  setSettings((prev) => ({
+                    ...prev,
+                    browserNotificationEnabled: false,
+                  }));
+                }
+              }}
+            />
+          </div>
+        </div>
+      </Card>
+
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
+        onClick={handleSave}
+        loading={saving}
+      >
+        設定を保存
+      </Button>
+
+      {/* Account */}
+      <Card>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+          アカウント
+        </h2>
+        <Button
+          variant="danger"
+          size="md"
+          fullWidth
+          onClick={handleLogout}
+        >
+          ログアウト
+        </Button>
+      </Card>
+
+      <p className="text-center text-xs text-gray-400 pb-4">
+        筋トレ記録 Version 1.0
+      </p>
+    </div>
+  );
+}
