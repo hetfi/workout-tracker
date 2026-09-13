@@ -92,14 +92,18 @@ export function ExerciseEditForm({
           <button
             onClick={() => setOneArm(!oneArm)}
             aria-pressed={oneArm}
-            className="relative shrink-0 w-12 h-7 rounded-full transition-colors"
-            style={{ backgroundColor: oneArm ? "#ffffff" : "#3A3A3C" }}
+            className="relative shrink-0 w-12 h-7 rounded-full overflow-hidden"
+            style={{
+              backgroundColor: oneArm ? "#ffffff" : "#3A3A3C",
+              transition: "background-color 0.15s",
+            }}
           >
             <span
-              className="absolute top-1 w-5 h-5 rounded-full shadow transition-transform"
+              className="absolute top-1 w-5 h-5 rounded-full shadow"
               style={{
                 backgroundColor: oneArm ? "#1C1C1E" : "#8E8E93",
-                transform: oneArm ? "translateX(24px)" : "translateX(4px)",
+                left: oneArm ? "24px" : "4px",
+                transition: "left 0.15s ease-in-out, background-color 0.15s",
               }}
             />
           </button>

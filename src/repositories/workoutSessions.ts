@@ -347,3 +347,15 @@ export async function getPreviousSessionData(
     })),
   };
 }
+
+// ---- Delete helpers ----
+
+export async function deleteSessionExercise(id: string): Promise<void> {
+  const supabase = createClient();
+  await supabase.from("workout_session_exercises").delete().eq("id", id);
+}
+
+export async function deleteWorkoutSet(clientId: string): Promise<void> {
+  const supabase = createClient();
+  await supabase.from("workout_sets").delete().eq("client_id", clientId);
+}

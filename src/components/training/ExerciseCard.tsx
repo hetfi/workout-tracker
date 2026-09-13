@@ -19,6 +19,8 @@ interface ExerciseCardProps {
   onSetComplete: (set: WorkoutSet) => void;
   onSetsUpdate: (sets: WorkoutSet[]) => void;
   onSkipExercise: () => void;
+  onDeleteExercise?: () => void;
+  onDeleteSet?: (clientId: string) => void;
 }
 
 // --- One-arm row sub-component ---
@@ -54,8 +56,8 @@ function OneArmSetRow({
         "touch-manipulation select-none",
         "text-left",
         isCompleted
-          ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-          : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 active:bg-gray-50"
+          ? "bg-[#CAFF4D]/10 border border-[#CAFF4D]/30"
+          : "bg-white/[0.06] border border-white/[0.08] active:bg-white/[0.1]"
       )}
       aria-label={`${setNumber}セット目 ${side}: 重量${weight}kg 回数${reps}回 ${isCompleted ? "完了" : "未完了"}`}
     >
@@ -63,9 +65,7 @@ function OneArmSetRow({
       <span
         className={cn(
           "text-sm font-medium w-8 text-center shrink-0",
-          isCompleted
-            ? "text-green-700 dark:text-green-400"
-            : "text-gray-500 dark:text-gray-400"
+          isCompleted ? "text-[#CAFF4D]" : "text-[#8E8E93]"
         )}
       >
         {setNumber}
@@ -77,21 +77,17 @@ function OneArmSetRow({
         <span
           className={cn(
             "text-xl font-bold tabular-nums",
-            isCompleted
-              ? "text-green-800 dark:text-green-300"
-              : "text-gray-900 dark:text-gray-100"
+            isCompleted ? "text-[#CAFF4D]" : "text-white"
           )}
         >
           {weight}
           <span className="text-sm font-normal ml-0.5">kg</span>
         </span>
-        <span className="text-gray-400 dark:text-gray-500">×</span>
+        <span className="text-[#8E8E93]">×</span>
         <span
           className={cn(
             "text-xl font-bold tabular-nums",
-            isCompleted
-              ? "text-green-800 dark:text-green-300"
-              : "text-gray-900 dark:text-gray-100"
+            isCompleted ? "text-[#CAFF4D]" : "text-white"
           )}
         >
           {reps}
@@ -102,11 +98,11 @@ function OneArmSetRow({
       {/* Status badge */}
       <div className="shrink-0">
         {isCompleted ? (
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-green-500 text-white text-sm">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#CAFF4D] text-black text-sm font-bold">
             ✓
           </span>
         ) : (
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-gray-300 dark:border-gray-600 text-gray-400 text-xs">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white/[0.2] text-[#8E8E93] text-xs">
             →
           </span>
         )}
@@ -120,12 +116,14 @@ function OneArmSetRow({
 export function ExerciseCard({
   sessionExercise,
   sets,
-  smallStep = 2.5,
-  largeStep = 5.0,
+  smallStep = 0.5,
+  largeStep = 2.5,
   previousRecord,
   onSetComplete,
   onSetsUpdate,
   onSkipExercise,
+  onDeleteExercise,
+  onDeleteSet,
 }: ExerciseCardProps) {
   // Normal-mode picker state
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -271,28 +269,28 @@ export function ExerciseCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100 truncate">
+            <h3 className="font-semibold text-lg text-white truncate">
               {sessionExercise.exerciseName}
             </h3>
             {/* One-arm toggle badge */}
             <button
               onClick={handleToggleOneArm}
               className={cn(
-                "shrink-0 text-xs px-2 py-0.5 rounded-full font-medium transition-colors",
+                "shrink-0 text-xs px-2 py-0.5 rounded-full font-medium transition-colors border",
                 isOneArmLocal
-                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400"
-                  : "bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500"
+                  ? "bg-[#CAFF4D]/20 text-[#CAFF4D] border-[#CAFF4D]/40"
+                  : "bg-white/[0.06] text-[#8E8E93] border-white/[0.08]"
               )}
             >
               片手
             </button>
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-[#8E8E93]">
               目標: {sessionExercise.plannedSets}セット ×{" "}
               {formatRepsTarget(sessionExercise.plannedRepsTarget)}回
             </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-[#8E8E93]">
               インターバル: {formatRestSeconds(sessionExercise.restSeconds)}
             </span>
           </div>
@@ -308,17 +306,37 @@ export function ExerciseCard({
           )}
         </div>
 
-        {/* Progress badge */}
-        <div
-          className={cn(
-            "shrink-0 flex flex-col items-center justify-center",
-            "h-10 w-10 rounded-full text-sm font-bold",
-            isAllDone
-              ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
-              : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+        {/* Progress badge + delete */}
+        <div className="shrink-0 flex items-center gap-2">
+          {onDeleteExercise && (
+            <button
+              onClick={() => {
+                if (confirm(`「${sessionExercise.exerciseName}」を削除しますか？`)) {
+                  onDeleteExercise();
+                }
+              }}
+              className="w-8 h-8 flex items-center justify-center rounded-full text-[#8E8E93] hover:text-red-400 hover:bg-white/[0.08] transition-colors"
+              aria-label="種目を削除"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                <path d="M10 11v6M14 11v6"/>
+                <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+              </svg>
+            </button>
           )}
-        >
-          <span>{completedCount}/{totalCount}</span>
+          <div
+            className={cn(
+              "shrink-0 flex flex-col items-center justify-center",
+              "h-10 w-10 rounded-full text-sm font-bold",
+              isAllDone
+                ? "bg-[#CAFF4D]/20 text-[#CAFF4D]"
+                : "bg-white/[0.08] text-white"
+            )}
+          >
+            <span>{completedCount}/{totalCount}</span>
+          </div>
         </div>
       </div>
 
@@ -357,7 +375,12 @@ export function ExerciseCard({
         ) : (
           // Normal mode
           sets.map((s, i) => (
-            <SetRow key={s.clientId} set={s} onTap={() => handleSetTap(i)} />
+            <SetRow
+              key={s.clientId}
+              set={s}
+              onTap={() => handleSetTap(i)}
+              onDelete={onDeleteSet ? () => onDeleteSet(s.clientId) : undefined}
+            />
           ))
         )}
       </div>

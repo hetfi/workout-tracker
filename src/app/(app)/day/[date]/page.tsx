@@ -1,9 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { Card } from "@/components/ui/Card";
 import { DayActions } from "./DayActions";
-import { CATEGORY_COLORS } from "@/lib/muscleCategory";
-import { classifyExercise } from "@/lib/muscleCategory";
+import { CATEGORY_COLORS, classifyExercise } from "@/lib/muscleCategory";
 
 interface PageProps {
   params: Promise<{ date: string }>;
@@ -18,24 +16,21 @@ function formatJapaneseDate(dateStr: string): string {
 }
 
 function SessionStatusBadge({ status }: { status: string }) {
-  const configs: Record<string, { label: string; className: string }> = {
-    not_started: {
-      label: "未開始",
-      className: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
-    },
-    in_progress: {
-      label: "実施中",
-      className: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400",
-    },
-    completed: {
-      label: "完了",
-      className: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400",
-    },
-  };
-  const config = configs[status] ?? { label: status, className: "" };
+  if (status === "completed")
+    return (
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#CAFF4D]/20 text-[#CAFF4D]">
+        完了
+      </span>
+    );
+  if (status === "in_progress")
+    return (
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
+        実施中
+      </span>
+    );
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${config.className}`}>
-      {config.label}
+    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/[0.08] text-[#8E8E93]">
+      未開始
     </span>
   );
 }
@@ -81,7 +76,7 @@ export default async function DayPage({ params }: PageProps) {
       <div className="flex items-center gap-3">
         <Link
           href="/home"
-          className="text-blue-600 dark:text-blue-400 text-sm font-medium"
+          className="text-[#CAFF4D] text-sm font-medium"
         >
           ← ホーム
         </Link>
@@ -89,7 +84,7 @@ export default async function DayPage({ params }: PageProps) {
 
       {/* Date heading */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+        <h1 className="text-xl font-bold text-white">
           {formatJapaneseDate(date)}
         </h1>
       </div>
@@ -100,14 +95,14 @@ export default async function DayPage({ params }: PageProps) {
           {sessionList.map((session) => {
             const exes = exercisesMap[session.id] ?? [];
             return (
-              <Card key={session.id} className="space-y-3">
+              <div
+                key={session.id}
+                className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 space-y-3"
+              >
                 <div className="flex items-center justify-between">
-                  <Link
-                    href={`/session/${session.id}`}
-                    className="font-semibold text-gray-900 dark:text-gray-100 flex-1"
-                  >
+                  <p className="font-semibold text-white flex-1 truncate">
                     {session.title}
-                  </Link>
+                  </p>
                   <SessionStatusBadge status={session.status} />
                 </div>
                 {exes.length > 0 && (
@@ -115,7 +110,7 @@ export default async function DayPage({ params }: PageProps) {
                     {exes.map((ex, i) => {
                       const cat = classifyExercise(ex.exercise_name);
                       return (
-                        <li key={i} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <li key={i} className="flex items-center gap-2 text-sm text-white">
                           <span
                             style={{ backgroundColor: CATEGORY_COLORS[cat] }}
                             className="w-2 h-2 rounded-full shrink-0"
@@ -128,25 +123,25 @@ export default async function DayPage({ params }: PageProps) {
                 )}
                 <Link
                   href={`/session/${session.id}`}
-                  className="block text-xs text-blue-600 dark:text-blue-400 text-right"
+                  className="block text-xs text-[#CAFF4D] text-right"
                 >
                   詳細を見る →
                 </Link>
-              </Card>
+              </div>
             );
           })}
         </div>
       )}
 
       {sessionList.length === 0 && (
-        <div className="text-center py-10 text-gray-400 dark:text-gray-500">
+        <div className="text-center py-10 text-[#8E8E93]">
           この日のトレーニング記録はありません
         </div>
       )}
 
       {/* Actions */}
       <div>
-        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 px-1">
+        <h2 className="text-sm font-medium text-[#8E8E93] mb-3 px-1">
           この日にトレーニングを追加
         </h2>
         <DayActions date={date} />

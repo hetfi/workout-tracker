@@ -15,6 +15,8 @@ import {
   updateSessionExercise,
   upsertSet,
   getPreviousSessionData,
+  deleteSessionExercise,
+  deleteWorkoutSet,
 } from "@/repositories/workoutSessions";
 import {
   getRunningTimer,
@@ -370,6 +372,43 @@ export default function SessionPage({
     [showToast]
   );
 
+  // ---- Handle delete exercise ----
+  const handleDeleteExercise = useCallback(
+    async (exerciseId: string) => {
+      try {
+        await deleteSessionExercise(exerciseId);
+        setExercises((prev) => prev.filter((e) => e.id !== exerciseId));
+        setSetsMap((prev) => {
+          const updated = { ...prev };
+          delete updated[exerciseId];
+          return updated;
+        });
+      } catch {
+        showToast("種目の削除に失敗しました", "error");
+      }
+    },
+    [showToast]
+  );
+
+  // ---- Handle delete set ----
+  const handleDeleteSet = useCallback(
+    async (exerciseId: string, clientId: string) => {
+      try {
+        await deleteWorkoutSet(clientId);
+        setSetsMap((prev) => {
+          const updated = { ...prev };
+          updated[exerciseId] = (prev[exerciseId] ?? []).filter(
+            (s) => s.clientId !== clientId
+          );
+          return updated;
+        });
+      } catch {
+        showToast("セットの削除に失敗しました", "error");
+      }
+    },
+    [showToast]
+  );
+
   // ---- Timer callbacks ----
   const handleTimerUpdate = useCallback(
     async (updated: TimerState) => {
@@ -420,6 +459,12 @@ export default function SessionPage({
 
   // ---- Complete session ----
   const handleComplete = async () => {
+    // If already completed (edit mode), just go back
+    if (session?.status === "completed") {
+      router.back();
+      return;
+    }
+
     const allSets = Object.values(setsMap).flat();
     const completedCount = allSets.filter((s) => s.status === "completed").length;
     if (completedCount === 0) {
@@ -461,20 +506,23 @@ export default function SessionPage({
       {/* Header */}
       <div className="flex items-center justify-between pt-12">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 truncate">
+          <h1 className="text-xl font-bold text-white truncate">
             {session.title}
           </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          <p className="text-xs text-[#8E8E93] mt-0.5">
             {completedSets}/{totalSets} セット完了
+            {session.status === "completed" && (
+              <span className="ml-2 text-[#CAFF4D]">（編集モード）</span>
+            )}
           </p>
         </div>
         <SaveStatusIndicator status={saveStatus} />
       </div>
 
       {/* Progress bar */}
-      <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+      <div className="w-full h-1.5 bg-white/[0.1] rounded-full overflow-hidden">
         <div
-          className="h-full bg-blue-500 rounded-full transition-all duration-300"
+          className="h-full bg-[#CAFF4D] rounded-full transition-all duration-300"
           style={{
             width:
               totalSets > 0 ? `${(completedSets / totalSets) * 100}%` : "0%",
@@ -491,6 +539,8 @@ export default function SessionPage({
           onSetComplete={(set) => handleSetComplete(ex.id, set)}
           onSetsUpdate={(sets) => handleSetsUpdate(ex.id, sets)}
           onSkipExercise={() => handleSkipExercise(ex.id)}
+          onDeleteExercise={() => handleDeleteExercise(ex.id)}
+          onDeleteSet={(clientId) => handleDeleteSet(ex.id, clientId)}
         />
       ))}
 
@@ -502,7 +552,7 @@ export default function SessionPage({
           fullWidth
           onClick={handleComplete}
         >
-          トレーニングを完了する
+          {session?.status === "completed" ? "編集を完了する" : "トレーニングを完了する"}
         </Button>
       </div>
     </div>
