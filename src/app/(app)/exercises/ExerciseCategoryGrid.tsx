@@ -12,7 +12,6 @@ import {
 interface Exercise {
   id: string;
   name: string;
-  exercise_type: string;
   muscle_category: string | null;
   is_one_arm: boolean;
 }
@@ -24,15 +23,6 @@ interface Props {
 const CATEGORIES: MuscleCategory[] = [
   "chest", "shoulder", "arm", "back", "leg", "ab", "cardio",
 ];
-
-const TYPE_LABELS: Record<string, string> = {
-  barbell: "バーベル",
-  dumbbell: "ダンベル",
-  machine: "マシン",
-  cable: "ケーブル",
-  bodyweight: "自重",
-  other: "その他",
-};
 
 export function ExerciseCategoryGrid({ exercises }: Props) {
   const [active, setActive] = useState<MuscleCategory>("chest");
@@ -93,16 +83,11 @@ export function ExerciseCategoryGrid({ exercises }: Props) {
               <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 flex items-center justify-between">
                 <div>
                   <p className="font-medium text-white">{ex.name}</p>
-                  <div className="flex gap-2 mt-1 flex-wrap">
-                    {ex.is_one_arm && (
-                      <span className="text-xs px-2 py-0.5 rounded-full border border-[#CAFF4D]/40 text-[#CAFF4D]">
-                        片手
-                      </span>
-                    )}
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-white/[0.08] text-[#8E8E93]">
-                      {TYPE_LABELS[ex.exercise_type] ?? ex.exercise_type}
+                  {ex.is_one_arm && (
+                    <span className="text-xs px-2 py-0.5 rounded-full border border-[#CAFF4D]/40 text-[#CAFF4D] mt-1 inline-block">
+                      片手
                     </span>
-                  </div>
+                  )}
                 </div>
                 <span className="text-[#8E8E93] text-lg ml-2">›</span>
               </div>

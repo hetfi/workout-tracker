@@ -10,7 +10,9 @@ export interface ManualExercise {
   repsMax: number;
 }
 
-export async function getPastExercises(): Promise<{ id: string; name: string }[]> {
+export async function getPastExercises(): Promise<
+  { id: string; name: string; muscle_category: string | null; is_one_arm: boolean }[]
+> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -19,11 +21,17 @@ export async function getPastExercises(): Promise<{ id: string; name: string }[]
 
   const { data } = await supabase
     .from("exercises")
-    .select("id, name")
+    .select("id, name, muscle_category, is_one_arm")
+    .eq("user_id", user.id)
     .order("name")
-    .limit(100);
+    .limit(200);
 
-  return data ?? [];
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    muscle_category: row.muscle_category ?? null,
+    is_one_arm: Boolean(row.is_one_arm),
+  }));
 }
 
 export async function addManualSession(

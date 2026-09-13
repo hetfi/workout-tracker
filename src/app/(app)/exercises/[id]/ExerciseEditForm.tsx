@@ -46,62 +46,68 @@ export function ExerciseEditForm({
     <div className="space-y-5">
       {/* Category selection */}
       <Card>
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-          筋肉グループ
-        </p>
+        <p className="text-sm font-medium text-white mb-3">筋肉グループ</p>
         <div className="grid grid-cols-4 gap-2">
           {CATEGORIES.map((cat) => (
             <button
               key={cat}
               onClick={() => setCategory(cat)}
-              className={`py-2 px-1 rounded-xl text-sm font-medium transition-colors border-2 ${
-                category === cat
-                  ? "border-transparent text-white"
-                  : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800"
-              }`}
+              className="py-2 px-1 rounded-xl text-sm font-medium transition-colors border flex flex-col items-center gap-1"
               style={
                 category === cat
                   ? {
                       backgroundColor: CATEGORY_COLORS[cat],
                       borderColor: CATEGORY_COLORS[cat],
+                      color: cat === "arm" || cat === "cardio" ? "#000" : "#fff",
                     }
-                  : {}
+                  : {
+                      backgroundColor: "#3A3A3C",
+                      borderColor: "rgba(255,255,255,0.08)",
+                      color: "#fff",
+                    }
               }
             >
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{
+                  backgroundColor:
+                    category === cat ? "rgba(0,0,0,0.3)" : CATEGORY_COLORS[cat],
+                }}
+              />
               {CATEGORY_LABELS[cat]}
             </button>
           ))}
+          {/* 空セルで 2×4 グリッドを埋める */}
+          <div />
         </div>
       </Card>
 
       {/* One arm toggle */}
       <Card>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="font-medium text-gray-900 dark:text-gray-100">
-              片手種目
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              左右それぞれ記録します
-            </p>
+            <p className="font-medium text-white">片手種目</p>
+            <p className="text-xs text-[#8E8E93] mt-0.5">左右それぞれ記録します</p>
           </div>
           <button
             onClick={() => setOneArm(!oneArm)}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              oneArm ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
-            }`}
+            aria-pressed={oneArm}
+            className="relative shrink-0 w-12 h-7 rounded-full transition-colors"
+            style={{ backgroundColor: oneArm ? "#ffffff" : "#3A3A3C" }}
           >
             <span
-              className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                oneArm ? "translate-x-7" : "translate-x-1"
-              }`}
+              className="absolute top-1 w-5 h-5 rounded-full shadow transition-transform"
+              style={{
+                backgroundColor: oneArm ? "#1C1C1E" : "#8E8E93",
+                transform: oneArm ? "translateX(24px)" : "translateX(4px)",
+              }}
             />
           </button>
         </div>
       </Card>
 
       {saved ? (
-        <p className="text-center text-green-600 font-medium">保存しました</p>
+        <p className="text-center text-[#CAFF4D] font-medium">✓ 保存しました</p>
       ) : (
         <Button
           variant="primary"

@@ -13,7 +13,7 @@ export default async function ExercisesPage() {
 
   const { data: exercises } = await supabase
     .from("exercises")
-    .select("id, name, exercise_type, muscle_category, is_one_arm")
+    .select("id, name, muscle_category, is_one_arm")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .order("name");

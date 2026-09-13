@@ -36,7 +36,9 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 
 export function AddExercisesForm({ date }: AddExercisesFormProps) {
-  const [pastExercises, setPastExercises] = useState<{ id: string; name: string }[]>([]);
+  const [pastExercises, setPastExercises] = useState<
+    { id: string; name: string; muscle_category: string | null; is_one_arm: boolean }[]
+  >([]);
   const [activeTab, setActiveTab] = useState<TabKey>("chest");
   const [selected, setSelected] = useState<SelectedExercise[]>([]);
   const [customName, setCustomName] = useState("");
@@ -47,10 +49,14 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
     getPastExercises().then(setPastExercises);
   }, []);
 
+  // DB の muscle_category を優先、なければ名前で自動分類
+  const effectiveCategory = (e: { name: string; muscle_category: string | null }) =>
+    (e.muscle_category as MuscleCategory) ?? classifyExercise(e.name);
+
   const filteredExercises = (() => {
-    if (activeTab === "custom") return pastExercises;
+    if (activeTab === "custom") return [];
     return pastExercises.filter(
-      (e) => classifyExercise(e.name) === (activeTab as MuscleCategory)
+      (e) => effectiveCategory(e) === (activeTab as MuscleCategory)
     );
   })();
 
