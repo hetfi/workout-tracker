@@ -28,8 +28,8 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#111827" },
+    { media: "(prefers-color-scheme: light)", color: "#1C1C1E" },
+    { media: "(prefers-color-scheme: dark)", color: "#1C1C1E" },
   ],
 };
 
@@ -43,7 +43,7 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
-      <body className="h-full min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 antialiased">
+      <body className="h-full min-h-screen bg-[#1C1C1E] text-white antialiased">
         <ToastProvider>{children}</ToastProvider>
         <script
           dangerouslySetInnerHTML={{

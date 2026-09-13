@@ -1,13 +1,13 @@
 export type MuscleCategory = 'chest' | 'shoulder' | 'arm' | 'back' | 'leg' | 'ab' | 'cardio';
 
 export const CATEGORY_COLORS: Record<MuscleCategory, string> = {
-  chest:    '#EF4444',  // 胸 - red
-  shoulder: '#F97316',  // 肩 - orange
-  arm:      '#A855F7',  // 腕 - purple
-  back:     '#3B82F6',  // 背 - blue
-  leg:      '#22C55E',  // 脚 - green
-  ab:       '#06B6D4',  // 腹 - cyan
-  cardio:   '#EAB308',  // 有酸素 - yellow
+  chest:    '#EF4444',  // 赤
+  shoulder: '#F97316',  // オレンジ
+  arm:      '#EAB308',  // 黄色
+  back:     '#A855F7',  // 紫
+  leg:      '#22C55E',  // 緑
+  ab:       '#3B82F6',  // 青
+  cardio:   '#E5E7EB',  // 白（薄グレー）
 };
 
 export const CATEGORY_LABELS: Record<MuscleCategory, string> = {

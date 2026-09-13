@@ -101,9 +101,9 @@ export function WeightRepsPicker({
       className={cn(
         "flex items-center justify-center",
         "rounded-xl font-bold",
-        "bg-gray-100 dark:bg-gray-700",
-        "text-gray-800 dark:text-gray-200",
-        "active:bg-gray-200 dark:active:bg-gray-600",
+        "bg-[#3A3A3C]",
+        "text-white",
+        "active:bg-[#48484A]",
         "transition-colors select-none touch-manipulation",
         size === "lg" ? "h-12 w-16 text-sm" : "h-11 w-14 text-base"
       )}
@@ -120,7 +120,7 @@ export function WeightRepsPicker({
       <div className="space-y-6">
         {/* Weight section */}
         <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">
+          <p className="text-xs font-medium text-[#8E8E93] mb-2 uppercase tracking-wide">
             重量 (kg)
           </p>
           <div className="flex items-center justify-between gap-2">
@@ -147,8 +147,8 @@ export function WeightRepsPicker({
                   }}
                   className={cn(
                     "w-full text-center text-5xl font-bold",
-                    "bg-transparent border-b-2 border-blue-500",
-                    "text-gray-900 dark:text-gray-100",
+                    "bg-transparent border-b-2 border-[#CAFF4D]",
+                    "text-white",
                     "focus:outline-none"
                   )}
                   inputMode="decimal"
@@ -162,7 +162,7 @@ export function WeightRepsPicker({
                     setWeightInput(String(weight));
                     setTimeout(() => weightInputRef.current?.select(), 50);
                   }}
-                  className="text-5xl font-bold text-gray-900 dark:text-gray-100 tabular-nums"
+                  className="text-5xl font-bold text-white tabular-nums"
                   aria-label={`重量 ${weight}kg タップして編集`}
                 >
                   {weight}
@@ -179,7 +179,7 @@ export function WeightRepsPicker({
 
         {/* Reps section */}
         <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">
+          <p className="text-xs font-medium text-[#8E8E93] mb-2 uppercase tracking-wide">
             回数
           </p>
           <div className="flex items-center justify-between gap-2">
@@ -203,8 +203,8 @@ export function WeightRepsPicker({
                   }}
                   className={cn(
                     "w-full text-center text-5xl font-bold",
-                    "bg-transparent border-b-2 border-blue-500",
-                    "text-gray-900 dark:text-gray-100",
+                    "bg-transparent border-b-2 border-[#CAFF4D]",
+                    "text-white",
                     "focus:outline-none"
                   )}
                   inputMode="numeric"
@@ -218,7 +218,7 @@ export function WeightRepsPicker({
                     setRepsInput(String(reps));
                     setTimeout(() => repsInputRef.current?.select(), 50);
                   }}
-                  className="text-5xl font-bold text-gray-900 dark:text-gray-100 tabular-nums"
+                  className="text-5xl font-bold text-white tabular-nums"
                   aria-label={`回数 ${reps}回 タップして編集`}
                 >
                   {reps}

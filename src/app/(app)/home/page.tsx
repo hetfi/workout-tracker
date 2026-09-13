@@ -100,15 +100,15 @@ function SessionStatusBadge({ status }: { status: string }) {
   const configs: Record<string, { label: string; className: string }> = {
     not_started: {
       label: "未開始",
-      className: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
+      className: "bg-[#3A3A3C] text-[#8E8E93]",
     },
     in_progress: {
       label: "実施中",
-      className: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400",
+      className: "bg-[#CAFF4D]/20 text-[#CAFF4D]",
     },
     completed: {
       label: "完了",
-      className: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400",
+      className: "bg-[#CAFF4D]/20 text-[#CAFF4D]",
     },
   };
   const config = configs[status] ?? { label: status, className: "" };
@@ -144,21 +144,20 @@ export default async function HomePage() {
     <div className="py-6 space-y-5">
       {/* Date header */}
       <div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-[#8E8E93]">
           {formatJapaneseDate(todayStr)}
         </p>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+        <h1 className="text-2xl font-bold text-white">
           今日のトレーニング
         </h1>
       </div>
 
       {/* Streak */}
       {streak > 1 && (
-        <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 rounded-2xl px-4 py-3">
-          <span className="text-2xl">🔥</span>
+        <div className="flex items-center gap-2 bg-[#2C2C2E] border border-white/[0.08] rounded-xl px-4 py-3">
           <div>
-            <p className="font-bold text-orange-700 dark:text-orange-400">{streak}日連続トレーニング中！</p>
-            <p className="text-xs text-orange-600 dark:text-orange-500">この調子で続けよう</p>
+            <p className="font-bold text-[#CAFF4D]">{streak}日連続トレーニング中！</p>
+            <p className="text-xs text-[#8E8E93]">この調子で続けよう</p>
           </div>
         </div>
       )}
@@ -167,45 +166,52 @@ export default async function HomePage() {
       {activeSession?.status === "in_progress" ? (
         <Link
           href={`/session/${activeSession.id}`}
-          className="block rounded-2xl bg-blue-600 text-white text-center py-5 px-6 shadow-lg shadow-blue-200 dark:shadow-blue-900/30"
+          className="block rounded-xl bg-[#CAFF4D] text-black text-center py-4 px-6"
         >
-          <p className="text-sm opacity-80 mb-1">{activeSession.title}</p>
+          <p className="text-sm opacity-70 mb-1">{activeSession.title}</p>
           <p className="text-xl font-bold">トレーニングを再開 →</p>
         </Link>
       ) : activeSession?.status === "not_started" ? (
         <Link
           href={`/session/${activeSession.id}`}
-          className="block rounded-2xl bg-blue-600 text-white text-center py-5 px-6 shadow-lg shadow-blue-200 dark:shadow-blue-900/30"
+          className="block rounded-xl bg-[#CAFF4D] text-black text-center py-4 px-6"
         >
-          <p className="text-sm opacity-80 mb-1">{activeSession.title}</p>
+          <p className="text-sm opacity-70 mb-1">{activeSession.title}</p>
           <p className="text-xl font-bold">トレーニング開始 →</p>
         </Link>
       ) : !todayPlan ? (
-        <Link
-          href="/import"
-          className="block rounded-2xl border-2 border-dashed border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 text-center py-8 px-6"
-        >
-          <div className="text-3xl mb-2">📋</div>
-          <p className="text-lg font-semibold">メニューを取り込む</p>
-          <p className="text-sm opacity-70 mt-1">
-            ChatGPTのメニューを貼り付けて登録
-          </p>
-        </Link>
+        <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4">
+          <p className="text-[#8E8E93] text-sm mb-3">今日のトレーニングは未登録</p>
+          <div className="flex gap-2">
+            <Link
+              href="/import"
+              className="flex-1 text-center text-sm py-2.5 rounded-lg bg-white/[0.08] text-white font-medium"
+            >
+              GPTで取り込む
+            </Link>
+            <Link
+              href={`/day/${todayStr}/add`}
+              className="flex-1 text-center text-sm py-2.5 rounded-lg bg-white/[0.08] text-white font-medium"
+            >
+              手動で追加
+            </Link>
+          </div>
+        </div>
       ) : (
         <Card>
-          <p className="text-sm text-gray-500 mb-2">今日のメニュー</p>
-          <p className="font-semibold text-gray-900 dark:text-gray-100">
+          <p className="text-sm text-[#8E8E93] mb-2">今日のメニュー</p>
+          <p className="font-semibold text-white">
             {todayPlan.title}
           </p>
           {completedSession ? (
-            <span className="inline-block mt-2 text-xs bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 px-2 py-0.5 rounded-full">
+            <span className="inline-block mt-2 text-xs bg-[#3A3A3C] text-[#8E8E93] px-2 py-0.5 rounded-full">
               完了済み
             </span>
           ) : (
             <form action={startTrainingFromPlan.bind(null, todayPlan.id)}>
               <button
                 type="submit"
-                className="block w-full mt-3 rounded-xl bg-blue-600 text-white text-center py-3 font-semibold"
+                className="block w-full mt-3 rounded-xl bg-[#CAFF4D] text-black text-center py-3 font-semibold"
               >
                 トレーニング開始
               </button>
@@ -214,21 +220,10 @@ export default async function HomePage() {
         </Card>
       )}
 
-      {/* Import button (secondary) */}
-      {(activeSession || todayPlan) && (
-        <Link
-          href="/import"
-          className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 px-1"
-        >
-          <span>＋</span>
-          <span>メニューを取り込む</span>
-        </Link>
-      )}
-
       {/* Today's sessions */}
       {sessions.length > 0 && (
         <div>
-          <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 px-1">
+          <h2 className="text-sm font-medium text-[#8E8E93] mb-2 px-1">
             今日のセッション
           </h2>
           <div className="space-y-2">
@@ -239,7 +234,7 @@ export default async function HomePage() {
                 className="block"
               >
                 <Card className="flex items-center justify-between">
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                  <span className="font-medium text-white">
                     {s.title}
                   </span>
                   <SessionStatusBadge status={s.status} />
@@ -252,7 +247,7 @@ export default async function HomePage() {
 
       {/* Calendar */}
       <div>
-        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 px-1">
+        <h2 className="text-sm font-medium text-[#8E8E93] mb-3 px-1">
           トレーニング記録
         </h2>
         <WorkoutCalendar

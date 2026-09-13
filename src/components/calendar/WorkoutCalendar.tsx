@@ -76,24 +76,24 @@ export function WorkoutCalendar({
   const allCategories = Object.keys(CATEGORY_LABELS) as MuscleCategory[];
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm">
+    <div className="bg-[#2C2C2E] rounded-xl p-4">
       {/* Month navigation */}
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={prevMonth}
           disabled={loading}
-          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 disabled:opacity-40"
+          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-[#8E8E93] disabled:opacity-40"
           aria-label="前の月"
         >
           ◀
         </button>
-        <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
+        <span className="text-base font-semibold text-white">
           {year}年{month}月
         </span>
         <button
           onClick={nextMonth}
           disabled={loading}
-          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 disabled:opacity-40"
+          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-[#8E8E93] disabled:opacity-40"
           aria-label="次の月"
         >
           ▶
@@ -102,17 +102,8 @@ export function WorkoutCalendar({
 
       {/* Day of week header */}
       <div className="grid grid-cols-7 mb-1">
-        {DOW_LABELS.map((d, i) => (
-          <div
-            key={d}
-            className={`text-center text-xs font-medium pb-1 ${
-              i === 0
-                ? "text-red-500"
-                : i === 6
-                ? "text-blue-500"
-                : "text-gray-400 dark:text-gray-500"
-            }`}
-          >
+        {DOW_LABELS.map((d) => (
+          <div key={d} className="text-center text-xs font-medium pb-1 text-[#8E8E93]">
             {d}
           </div>
         ))}
@@ -127,26 +118,17 @@ export function WorkoutCalendar({
           const dateStr = formatDateStr(day);
           const categories = data[dateStr] ?? [];
           const isToday = dateStr === todayStr;
-          const dow = (startDow + (day - 1)) % 7;
 
           return (
             <button
               key={dateStr}
               onClick={() => router.push(`/day/${dateStr}`)}
-              className="flex flex-col items-center py-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700"
+              className="flex flex-col items-center py-1 rounded-lg hover:bg-white/[0.06]"
             >
               {/* Day number */}
-              <div
-                className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium ${
-                  isToday
-                    ? "bg-blue-600 text-white"
-                    : dow === 0
-                    ? "text-red-500"
-                    : dow === 6
-                    ? "text-blue-500"
-                    : "text-gray-800 dark:text-gray-200"
-                }`}
-              >
+              <div className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium ${
+                isToday ? "bg-[#CAFF4D] text-black font-bold" : "text-white"
+              }`}>
                 {day}
               </div>
               {/* Category dots */}
@@ -165,14 +147,14 @@ export function WorkoutCalendar({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+      <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-4 pt-3 border-t border-white/[0.08]">
         {allCategories.map((cat) => (
           <div key={cat} className="flex items-center gap-1">
             <span
               style={{ backgroundColor: CATEGORY_COLORS[cat] }}
               className="w-2 h-2 rounded-full"
             />
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-[#8E8E93]">
               {CATEGORY_LABELS[cat]}
             </span>
           </div>
