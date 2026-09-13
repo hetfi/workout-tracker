@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { classifyExercise, CATEGORY_COLORS } from "@/lib/muscleCategory";
-import { getHistorySessions, type HistorySession } from "./actions";
+import { CATEGORY_COLORS } from "@/lib/muscleCategory";
+import { getHistoryDays, type HistoryDay } from "./actions";
 
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 
 function formatDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-");
+  const [, m, d] = dateStr.split("-");
   const date = new Date(`${dateStr}T00:00:00+09:00`);
   const dow = DOW[date.getDay()];
   return `${parseInt(m)}/${parseInt(d)}（${dow}）`;
@@ -27,39 +27,34 @@ function StatusBadge({ status }: { status: string }) {
         実施中
       </span>
     );
-  return (
-    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/[0.08] text-[#8E8E93]">
-      未開始
-    </span>
-  );
+  return null;
 }
 
 interface Props {
-  initialSessions: HistorySession[];
-  /** The oldest date loaded so far (exclusive lower bound for next load) */
+  initialDays: HistoryDay[];
   oldestDate: string;
 }
 
-export function HistoryList({ initialSessions, oldestDate }: Props) {
-  const [sessions, setSessions] = useState<HistorySession[]>(initialSessions);
+export function HistoryList({ initialDays, oldestDate }: Props) {
+  const [days, setDays] = useState<HistoryDay[]>(initialDays);
   const [nextEndDate, setNextEndDate] = useState(oldestDate);
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore, setHasMore] = useState(initialDays.length >= 14);
   const [isPending, startTransition] = useTransition();
 
   const loadMore = () => {
     startTransition(async () => {
-      const more = await getHistorySessions(nextEndDate, 14);
+      const more = await getHistoryDays(nextEndDate, 14);
       if (more.length === 0) {
         setHasMore(false);
         return;
       }
-      setSessions((prev) => [...prev, ...more]);
+      setDays((prev) => [...prev, ...more]);
       setNextEndDate(more[more.length - 1].date);
-      if (more.length < 14) setHasMore(false);
+      if (more.length < 3) setHasMore(false); // 日ベースなので少なめの閾値
     });
   };
 
-  if (sessions.length === 0) {
+  if (days.length === 0) {
     return (
       <div className="text-center py-16 text-[#8E8E93]">
         <p>まだトレーニング記録がありません</p>
@@ -69,52 +64,46 @@ export function HistoryList({ initialSessions, oldestDate }: Props) {
 
   return (
     <div className="space-y-3">
-      {sessions.map((session) => (
+      {days.map((day) => (
         <div
-          key={session.id}
+          key={day.date}
           className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 space-y-3"
         >
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs text-[#8E8E93] mb-0.5">
-                {formatDate(session.date)}
-              </p>
-              <p className="font-semibold text-white">{session.title}</p>
+              <p className="text-xs text-[#8E8E93] mb-0.5">{formatDate(day.date)}</p>
+              <p className="font-semibold text-white">{day.title}</p>
             </div>
-            <StatusBadge status={session.status} />
+            <StatusBadge status={day.status} />
           </div>
 
           {/* Exercise list */}
-          {session.exercises.length > 0 && (
+          {day.exercises.length > 0 && (
             <ul className="space-y-1.5">
-              {session.exercises.map((ex, i) => {
-                const cat = classifyExercise(ex.name);
-                const color = CATEGORY_COLORS[cat];
-                return (
-                  <li key={i} className="flex items-center gap-2 text-sm">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: color }}
-                    />
-                    <span className="text-white flex-1 truncate">{ex.name}</span>
-                    {ex.completedSets > 0 && (
-                      <span className="text-[#8E8E93] text-xs shrink-0">
-                        {ex.completedSets}セット
-                        {ex.totalVolume > 0 && (
-                          <> ({ex.totalVolume.toLocaleString()}kg)</>
-                        )}
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
+              {day.exercises.map((ex, i) => (
+                <li key={i} className="flex items-center gap-2 text-sm">
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: CATEGORY_COLORS[ex.category] }}
+                  />
+                  <span className="text-white flex-1 truncate">{ex.name}</span>
+                  {ex.completedSets > 0 && (
+                    <span className="text-[#8E8E93] text-xs shrink-0">
+                      {ex.completedSets}セット
+                      {ex.totalVolume > 0 && (
+                        <> ({ex.totalVolume.toLocaleString()}kg)</>
+                      )}
+                    </span>
+                  )}
+                </li>
+              ))}
             </ul>
           )}
 
-          {/* Detail link */}
+          {/* Detail link → day view */}
           <Link
-            href={`/session/${session.id}`}
+            href={`/day/${day.date}`}
             className="block text-xs text-[#CAFF4D] text-right"
           >
             詳細を見る →

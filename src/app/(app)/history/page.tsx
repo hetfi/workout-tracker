@@ -1,22 +1,20 @@
 import { HistoryList } from "./HistoryList";
-import { getHistorySessions } from "./actions";
+import { getHistoryDays } from "./actions";
 
 export const revalidate = 0;
 
 export default async function HistoryPage() {
-  // Today (JST) as the exclusive upper bound
+  // JST で明日の日付を上限にすることで今日のセッションも含める
   const now = new Date();
   const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  // Use tomorrow as upper bound to include today's sessions
   const tomorrow = new Date(jst.getTime() + 24 * 60 * 60 * 1000);
-  const todayStr = tomorrow.toISOString().slice(0, 10);
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 
-  const initialSessions = await getHistorySessions(todayStr, 14);
+  const initialDays = await getHistoryDays(tomorrowStr, 14);
 
-  // The oldest loaded date is the date of the last session, or 14 days ago
   const oldestDate =
-    initialSessions.length > 0
-      ? initialSessions[initialSessions.length - 1].date
+    initialDays.length > 0
+      ? initialDays[initialDays.length - 1].date
       : new Date(jst.getTime() - 14 * 24 * 60 * 60 * 1000)
           .toISOString()
           .slice(0, 10);
@@ -28,10 +26,7 @@ export default async function HistoryPage() {
         <p className="text-xs text-[#8E8E93] mt-0.5">過去のトレーニング記録</p>
       </div>
 
-      <HistoryList
-        initialSessions={initialSessions}
-        oldestDate={oldestDate}
-      />
+      <HistoryList initialDays={initialDays} oldestDate={oldestDate} />
     </div>
   );
 }
