@@ -13,6 +13,7 @@ interface MenuPreviewProps {
   onConfirm: (workout: ParsedWorkout, rawText: string) => Promise<void>;
   onBack: () => void;
   saving?: boolean;
+  defaultDate?: string;
 }
 
 export function MenuPreview({
@@ -21,8 +22,9 @@ export function MenuPreview({
   onConfirm,
   onBack,
   saving = false,
+  defaultDate,
 }: MenuPreviewProps) {
-  const [date, setDate] = useState(workout.date);
+  const [date, setDate] = useState(defaultDate ?? workout.date);
   const [title, setTitle] = useState(workout.title);
   const [exercises, setExercises] = useState<ParsedExercise[]>(workout.exercises);
 

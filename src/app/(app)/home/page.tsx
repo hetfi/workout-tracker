@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
-import { startTrainingFromPlan } from "./actions";
+import { startTrainingFromPlan, getCalendarData } from "./actions";
+import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar";
 
 async function getTodayData(userId: string) {
   const supabase = await createClient();
@@ -29,21 +30,10 @@ async function getTodayData(userId: string) {
     .order("created_at", { ascending: false })
     .limit(1);
 
-  // Recent sessions
-  const { data: recentSessions } = await supabase
-    .from("workout_sessions")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("status", "completed")
-    .neq("date", todayStr)
-    .order("date", { ascending: false })
-    .limit(5);
-
   return {
     todayStr,
     sessions: sessions ?? [],
     todayPlan: plans?.[0] ?? null,
-    recentSessions: recentSessions ?? [],
   };
 }
 
@@ -86,9 +76,11 @@ export default async function HomePage() {
 
   if (!user) return null;
 
-  const { todayStr, sessions, todayPlan, recentSessions } = await getTodayData(
-    user.id
-  );
+  const { todayStr, sessions, todayPlan } = await getTodayData(user.id);
+
+  const jstYear = parseInt(todayStr.slice(0, 4));
+  const jstMonth = parseInt(todayStr.slice(5, 7));
+  const calendarData = await getCalendarData(jstYear, jstMonth);
 
   const activeSession = sessions.find(
     (s) => s.status === "in_progress" || s.status === "not_started"
@@ -194,58 +186,16 @@ export default async function HomePage() {
         </div>
       )}
 
-      {/* Recent history */}
-      {recentSessions.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2 px-1">
-            <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              直近のトレーニング
-            </h2>
-            <Link
-              href="/history"
-              className="text-xs text-blue-600 dark:text-blue-400"
-            >
-              すべて見る
-            </Link>
-          </div>
-          <div className="space-y-2">
-            {recentSessions.map((s) => (
-              <Link key={s.id} href={`/history/${s.id}`} className="block">
-                <Card className="flex items-center justify-between py-3">
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">
-                      {s.title}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {s.date.replace(/-/g, "/")}
-                    </p>
-                  </div>
-                  <span className="text-xs text-gray-400">›</span>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Quick links */}
-      <div className="grid grid-cols-2 gap-3">
-        <Link href="/history" className="block">
-          <Card className="text-center py-4">
-            <div className="text-2xl mb-1">📊</div>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              トレーニング履歴
-            </p>
-          </Card>
-        </Link>
-        <Link href="/exercises" className="block">
-          <Card className="text-center py-4">
-            <div className="text-2xl mb-1">💪</div>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              種目履歴
-            </p>
-          </Card>
-        </Link>
+      {/* Calendar */}
+      <div>
+        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 px-1">
+          トレーニング記録
+        </h2>
+        <WorkoutCalendar
+          initialYear={jstYear}
+          initialMonth={jstMonth}
+          initialData={calendarData}
+        />
       </div>
     </div>
   );

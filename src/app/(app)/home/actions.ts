@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { classifyExercise, getSessionCategories, MuscleCategory } from "@/lib/muscleCategory";
 
 export async function startTrainingFromPlan(planId: string) {
   const supabase = await createClient();
@@ -61,4 +62,60 @@ export async function startTrainingFromPlan(planId: string) {
   }
 
   redirect(`/session/${session.id}`);
+}
+
+export async function getCalendarData(
+  year: number,
+  month: number
+): Promise<Record<string, MuscleCategory[]>> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return {};
+
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  const { data: sessions } = await supabase
+    .from("workout_sessions")
+    .select("id, date")
+    .eq("user_id", user.id)
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .neq("status", "abandoned");
+
+  if (!sessions || sessions.length === 0) return {};
+
+  const sessionIds = sessions.map((s) => s.id);
+
+  const { data: exercises } = await supabase
+    .from("workout_session_exercises")
+    .select("session_id, exercise_name")
+    .in("session_id", sessionIds);
+
+  if (!exercises) return {};
+
+  // Map session_id -> date
+  const sessionDateMap: Record<string, string> = {};
+  for (const s of sessions) {
+    sessionDateMap[s.id] = s.date;
+  }
+
+  // Group exercise names by date
+  const dateExercises: Record<string, string[]> = {};
+  for (const ex of exercises) {
+    const date = sessionDateMap[ex.session_id];
+    if (!date) continue;
+    if (!dateExercises[date]) dateExercises[date] = [];
+    dateExercises[date].push(ex.exercise_name);
+  }
+
+  const result: Record<string, MuscleCategory[]> = {};
+  for (const [date, names] of Object.entries(dateExercises)) {
+    result[date] = getSessionCategories(names);
+  }
+
+  return result;
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MenuTextInput } from "@/components/import/MenuTextInput";
 import { MenuPreview } from "@/components/import/MenuPreview";
 import { saveParsedWorkout, listPlans } from "@/repositories/workoutPlans";
@@ -10,8 +10,10 @@ import type { ParsedWorkout } from "@/domain/types";
 
 type Step = "input" | "preview";
 
-export default function ImportPage() {
+function ImportPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const dateParam = searchParams.get("date");
   const { showToast } = useToast();
   const [step, setStep] = useState<Step>("input");
   const [parsed, setParsed] = useState<ParsedWorkout | null>(null);
@@ -47,7 +49,11 @@ export default function ImportPage() {
 
       await saveParsedWorkout(workout, raw);
       showToast("メニューを登録しました", "success");
-      router.push("/home");
+      if (dateParam) {
+        router.push(`/day/${dateParam}`);
+      } else {
+        router.push("/home");
+      }
     } catch (err) {
       console.error(err);
       showToast("登録に失敗しました。もう一度お試しください。", "error");
@@ -69,7 +75,11 @@ export default function ImportPage() {
           </button>
         )}
         <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-          {step === "input" ? "メニューを取り込む" : "確認・編集"}
+          {step === "input"
+            ? dateParam
+              ? `${dateParam.slice(5, 7)}月${parseInt(dateParam.slice(8, 10))}日のメニューを追加`
+              : "メニューを取り込む"
+            : "確認・編集"}
         </h1>
       </div>
 
@@ -82,8 +92,17 @@ export default function ImportPage() {
           onConfirm={handleConfirm}
           onBack={() => setStep("input")}
           saving={saving}
+          defaultDate={dateParam ?? undefined}
         />
       )}
     </div>
+  );
+}
+
+export default function ImportPage() {
+  return (
+    <Suspense fallback={<div className="py-6 text-center text-gray-400">読み込み中...</div>}>
+      <ImportPageInner />
+    </Suspense>
   );
 }
