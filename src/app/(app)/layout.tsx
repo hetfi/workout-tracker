@@ -7,7 +7,6 @@ async function NavBar() {
     <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 pb-safe-bottom">
       <div className="flex justify-around items-center h-14">
         <NavItem href="/home" icon="🏠" label="ホーム" />
-        <NavItem href="/history" icon="📋" label="履歴" />
         <NavItem href="/exercises" icon="💪" label="種目" />
         <NavItem href="/settings" icon="⚙️" label="設定" />
       </div>

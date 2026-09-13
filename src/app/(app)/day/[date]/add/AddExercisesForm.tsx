@@ -5,6 +5,12 @@ import { getPastExercises, addManualSession, ManualExercise } from "./actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import {
+  classifyExercise,
+  MuscleCategory,
+  CATEGORY_LABELS,
+  CATEGORY_COLORS,
+} from "@/lib/muscleCategory";
 
 interface AddExercisesFormProps {
   date: string;
@@ -16,12 +22,25 @@ interface SelectedExercise extends ManualExercise {
 
 let keyCounter = 0;
 
+const TABS = [
+  { key: "all", label: "全て", color: null },
+  { key: "chest", label: "胸", color: CATEGORY_COLORS.chest },
+  { key: "shoulder", label: "肩", color: CATEGORY_COLORS.shoulder },
+  { key: "arm", label: "腕", color: CATEGORY_COLORS.arm },
+  { key: "back", label: "背", color: CATEGORY_COLORS.back },
+  { key: "leg", label: "脚", color: CATEGORY_COLORS.leg },
+  { key: "ab", label: "腹", color: CATEGORY_COLORS.ab },
+  { key: "cardio", label: "有酸素", color: CATEGORY_COLORS.cardio },
+  { key: "custom", label: "＋新規", color: null },
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
+
 export function AddExercisesForm({ date }: AddExercisesFormProps) {
   const [pastExercises, setPastExercises] = useState<{ id: string; name: string }[]>([]);
-  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [selected, setSelected] = useState<SelectedExercise[]>([]);
   const [customName, setCustomName] = useState("");
-  const [showCustomInput, setShowCustomInput] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -29,18 +48,21 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
     getPastExercises().then(setPastExercises);
   }, []);
 
-  const filtered = search.trim()
-    ? pastExercises.filter((e) =>
-        e.name.toLowerCase().includes(search.toLowerCase())
-      )
-    : pastExercises;
+  const filteredExercises = (() => {
+    if (activeTab === "all" || activeTab === "custom") return pastExercises;
+    return pastExercises.filter(
+      (e) => classifyExercise(e.name) === (activeTab as MuscleCategory)
+    );
+  })();
+
+  const selectedNames = new Set(selected.map((e) => e.name));
 
   const addExercise = (name: string) => {
+    if (selectedNames.has(name)) return;
     setSelected((prev) => [
       ...prev,
       { key: keyCounter++, name, sets: 3, repsMin: 8, repsMax: 12 },
     ]);
-    setSearch("");
   };
 
   const addCustom = () => {
@@ -48,7 +70,6 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
     if (!name) return;
     addExercise(name);
     setCustomName("");
-    setShowCustomInput(false);
   };
 
   const remove = (key: number) => {
@@ -78,65 +99,81 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
 
   return (
     <div className="space-y-5">
-      {/* Search past exercises */}
-      <div>
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          種目を検索して追加
-        </p>
-        <Input
-          placeholder="種目名を検索..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        {search.trim() && (
-          <div className="mt-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden shadow-sm max-h-48 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-400">見つかりません</p>
-            ) : (
-              filtered.map((e) => (
+      {/* Category tabs */}
+      <div className="overflow-x-auto -mx-1 px-1">
+        <div className="flex gap-2 flex-nowrap pb-1">
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+                  isActive
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                }`}
+              >
+                {tab.color && (
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: tab.color }}
+                  />
+                )}
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Custom input or exercise pills */}
+      {activeTab === "custom" ? (
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <Input
+              placeholder="種目名を入力..."
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addCustom();
+              }}
+              autoFocus
+            />
+          </div>
+          <Button variant="primary" size="sm" onClick={addCustom}>
+            追加
+          </Button>
+        </div>
+      ) : (
+        <div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            {filteredExercises.length === 0
+              ? "この部位の種目はまだありません"
+              : `${filteredExercises.length}件`}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {filteredExercises.map((e) => {
+              const isSelected = selectedNames.has(e.name);
+              return (
                 <button
                   key={e.id}
                   onClick={() => addExercise(e.name)}
-                  className="w-full text-left px-4 py-3 text-sm text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 border-b last:border-b-0 border-gray-100 dark:border-gray-700"
+                  disabled={isSelected}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                    isSelected
+                      ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-default"
+                      : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:text-blue-600 active:bg-blue-50"
+                  }`}
                 >
-                  {e.name}
+                  <span>{isSelected ? "✓" : "＋"}</span>
+                  <span>{e.name}</span>
                 </button>
-              ))
-            )}
+              );
+            })}
           </div>
-        )}
-      </div>
-
-      {/* Custom exercise */}
-      <div>
-        {!showCustomInput ? (
-          <button
-            onClick={() => setShowCustomInput(true)}
-            className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 font-medium"
-          >
-            <span>＋</span>
-            <span>種目を追加（カスタム）</span>
-          </button>
-        ) : (
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Input
-                placeholder="種目名を入力..."
-                value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") addCustom(); }}
-                autoFocus
-              />
-            </div>
-            <Button variant="primary" size="sm" onClick={addCustom}>
-              追加
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => { setShowCustomInput(false); setCustomName(""); }}>
-              キャンセル
-            </Button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Selected exercises */}
       {selected.length > 0 && (

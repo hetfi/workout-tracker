@@ -21,37 +21,13 @@ import type {
 } from "@/domain/types";
 import type { ExportSession } from "@/lib/export";
 
-function StarRating({
-  value,
-  onChange,
-  label,
-}: {
-  value: number | null;
-  onChange: (v: number) => void;
-  label: string;
-}) {
-  return (
-    <div>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{label}</p>
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button
-            key={n}
-            onClick={() => onChange(n)}
-            className={`text-2xl transition-transform active:scale-90 ${
-              value !== null && n <= value
-                ? "text-yellow-400"
-                : "text-gray-300 dark:text-gray-600"
-            }`}
-            aria-label={`${label} ${n}`}
-          >
-            ★
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
+const MESSAGES = [
+  "今日も最高の自分を更新した 💪",
+  "積み重ねが力になる。また明日！🔥",
+  "筋肉は裏切らない。今日の努力が未来の自分を作る ⚡",
+  "GJ! 着実に強くなっている 🏋️",
+  "今日もやり切った！それが全て 💯",
+];
 
 export default function CompletePage({
   params,
@@ -65,10 +41,6 @@ export default function CompletePage({
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [exercises, setExercises] = useState<WorkoutSessionExercise[]>([]);
   const [setsMap, setSetsMap] = useState<Record<string, WorkoutSet[]>>({});
-  const [bodyCondition, setBodyCondition] = useState<number | null>(null);
-  const [fatigueLevel, setFatigueLevel] = useState<number | null>(null);
-  const [pain, setPain] = useState("");
-  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -93,21 +65,10 @@ export default function CompletePage({
         }
       }
       setSetsMap(grouped);
-      if (sessionData.bodyCondition) setBodyCondition(sessionData.bodyCondition);
-      if (sessionData.fatigueLevel) setFatigueLevel(sessionData.fatigueLevel);
-      if (sessionData.pain) setPain(sessionData.pain);
-      if (sessionData.notes) setNotes(sessionData.notes);
     };
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
-
-  const calcDuration = () => {
-    if (!session?.startedAt) return null;
-    const end = new Date();
-    const start = new Date(session.startedAt);
-    return Math.round((end.getTime() - start.getTime()) / 60000);
-  };
 
   const calcVolume = () => {
     return Object.values(setsMap)
@@ -122,10 +83,6 @@ export default function CompletePage({
       await updateSession(sessionId, {
         status: "completed",
         completedAt: new Date().toISOString(),
-        bodyCondition,
-        fatigueLevel,
-        pain: pain || null,
-        notes: notes || null,
       });
       await Promise.all([
         cancelTimersForSession(sessionId),
@@ -151,10 +108,10 @@ export default function CompletePage({
         title: session.title,
         startedAt: session.startedAt,
         completedAt: session.completedAt ?? new Date().toISOString(),
-        bodyCondition,
-        fatigueLevel,
-        pain: pain || null,
-        notes: notes || null,
+        bodyCondition: null,
+        fatigueLevel: null,
+        pain: null,
+        notes: null,
       },
       exercises: exercises.map((ex) => ({
         exercise: {
@@ -192,10 +149,10 @@ export default function CompletePage({
     );
   }
 
-  const duration = calcDuration();
   const volume = calcVolume();
   const allSets = Object.values(setsMap).flat();
   const completedCount = allSets.filter((s) => s.status === "completed").length;
+  const motivationalMessage = MESSAGES[completedCount % MESSAGES.length];
 
   return (
     <div className="py-6 space-y-5">
@@ -204,69 +161,24 @@ export default function CompletePage({
           🎉 お疲れ様でした！
         </h1>
         <p className="text-gray-500 dark:text-gray-400">{session.title}</p>
+        <p className="text-blue-600 dark:text-blue-400 font-medium mt-1">
+          {motivationalMessage}
+        </p>
       </div>
 
       {/* Summary */}
       <Card>
-        <div className="grid grid-cols-3 gap-4 text-center">
+        <div className="grid grid-cols-2 gap-4 text-center">
           <div>
-            <p className="text-2xl font-bold text-blue-600">{completedCount}</p>
+            <p className="text-3xl font-bold text-blue-600">{completedCount}</p>
             <p className="text-xs text-gray-500 mt-1">完了セット</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-blue-600">
-              {duration ?? "–"}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">分</p>
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-blue-600">
+            <p className="text-3xl font-bold text-blue-600">
               {Math.round(volume).toLocaleString()}
             </p>
-            <p className="text-xs text-gray-500 mt-1">kg (総Vol)</p>
+            <p className="text-xs text-gray-500 mt-1">kg（総ボリューム）</p>
           </div>
-        </div>
-      </Card>
-
-      {/* Ratings */}
-      <Card className="space-y-4">
-        <StarRating
-          value={bodyCondition}
-          onChange={setBodyCondition}
-          label="体調"
-        />
-        <StarRating
-          value={fatigueLevel}
-          onChange={setFatigueLevel}
-          label="疲労度"
-        />
-      </Card>
-
-      {/* Notes */}
-      <Card className="space-y-3">
-        <div>
-          <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">
-            痛み・違和感
-          </label>
-          <input
-            type="text"
-            value={pain}
-            onChange={(e) => setPain(e.target.value)}
-            placeholder="例: 左肘に軽い張り"
-            className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">
-            全体メモ
-          </label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            placeholder="トレーニング全体の感想など"
-            className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-          />
         </div>
       </Card>
 

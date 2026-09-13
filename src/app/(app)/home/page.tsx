@@ -4,6 +4,43 @@ import { Card } from "@/components/ui/Card";
 import { startTrainingFromPlan, getCalendarData } from "./actions";
 import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar";
 
+function calcStreak(sessions: { date: string; status: string }[]): number {
+  const completed = sessions
+    .filter((s) => s.status === "completed")
+    .map((s) => s.date)
+    .sort((a, b) => b.localeCompare(a));
+
+  if (completed.length === 0) return 0;
+
+  const uniqueDates = [...new Set(completed)];
+
+  const today = new Date();
+  const jst = new Date(today.getTime() + 9 * 60 * 60 * 1000);
+  const todayStr = jst.toISOString().slice(0, 10);
+
+  const yesterday = new Date(jst);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+  // Streak must start from today or yesterday
+  if (uniqueDates[0] !== todayStr && uniqueDates[0] !== yesterdayStr) return 0;
+
+  let streak = 0;
+  let checkDate = new Date(uniqueDates[0] + "T00:00:00+09:00");
+
+  for (const date of uniqueDates) {
+    const checkStr = checkDate.toISOString().slice(0, 10);
+    if (date === checkStr) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+}
+
 async function getTodayData(userId: string) {
   const supabase = await createClient();
   const today = new Date();
@@ -30,10 +67,24 @@ async function getTodayData(userId: string) {
     .order("created_at", { ascending: false })
     .limit(1);
 
+  // Recent sessions for streak calculation
+  const thirtyDaysAgo = new Date(jst);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
+
+  const { data: streakSessions } = await supabase
+    .from("workout_sessions")
+    .select("date, status")
+    .eq("user_id", userId)
+    .gte("date", thirtyDaysAgoStr)
+    .order("date", { ascending: false })
+    .limit(30);
+
   return {
     todayStr,
     sessions: sessions ?? [],
     todayPlan: plans?.[0] ?? null,
+    streakSessions: streakSessions ?? [],
   };
 }
 
@@ -76,7 +127,7 @@ export default async function HomePage() {
 
   if (!user) return null;
 
-  const { todayStr, sessions, todayPlan } = await getTodayData(user.id);
+  const { todayStr, sessions, todayPlan, streakSessions } = await getTodayData(user.id);
 
   const jstYear = parseInt(todayStr.slice(0, 4));
   const jstMonth = parseInt(todayStr.slice(5, 7));
@@ -86,6 +137,8 @@ export default async function HomePage() {
     (s) => s.status === "in_progress" || s.status === "not_started"
   );
   const completedSession = sessions.find((s) => s.status === "completed");
+
+  const streak = calcStreak(streakSessions);
 
   return (
     <div className="py-6 space-y-5">
@@ -98,6 +151,17 @@ export default async function HomePage() {
           今日のトレーニング
         </h1>
       </div>
+
+      {/* Streak */}
+      {streak > 1 && (
+        <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 rounded-2xl px-4 py-3">
+          <span className="text-2xl">🔥</span>
+          <div>
+            <p className="font-bold text-orange-700 dark:text-orange-400">{streak}日連続トレーニング中！</p>
+            <p className="text-xs text-orange-600 dark:text-orange-500">この調子で続けよう</p>
+          </div>
+        </div>
+      )}
 
       {/* Primary CTA */}
       {activeSession?.status === "in_progress" ? (
