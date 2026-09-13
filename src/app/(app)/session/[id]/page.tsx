@@ -442,6 +442,21 @@ export default function SessionPage({
         return updated;
       });
 
+      // completed セッションにセットを追加した場合は in_progress に戻す
+      if (session?.status === "completed") {
+        try {
+          await updateSession(sessionId, {
+            status: "in_progress",
+            completedAt: null,
+          });
+          setSession((prev) =>
+            prev ? { ...prev, status: "in_progress", completedAt: null } : prev
+          );
+        } catch {
+          // Non-critical
+        }
+      }
+
       // Persist to DB
       try {
         await upsertSet({
@@ -460,7 +475,7 @@ export default function SessionPage({
         // Non-critical: draft will sync later
       }
     },
-    [setsMap, sessionId, saveDraft]
+    [setsMap, sessionId, session, saveDraft]
   );
 
   // ---- Timer callbacks ----
@@ -521,6 +536,8 @@ export default function SessionPage({
 
     const allSets = Object.values(setsMap).flat();
     const completedCount = allSets.filter((s) => s.status === "completed").length;
+    const totalCount = allSets.length;
+    const pendingCount = totalCount - completedCount;
 
     if (completedCount === 0) {
       if (!confirm("完了したセットがありません。セッションを終了しますか？")) return;
@@ -535,6 +552,11 @@ export default function SessionPage({
       }
       router.push("/home");
       return;
+    }
+
+    // 未完了セットが残っている場合は確認
+    if (pendingCount > 0) {
+      if (!confirm(`まだ${pendingCount}セット完了していません。終了しますか？`)) return;
     }
 
     router.push(`/session/${sessionId}/complete`);

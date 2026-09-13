@@ -184,5 +184,19 @@ export async function addExercisesToSession(
 
   await supabase.from("workout_session_exercises").insert(sessionExercises);
 
+  // completed セッションに追加した場合は in_progress に戻す（ホームで「再開」ボタンが出るように）
+  const { data: session } = await supabase
+    .from("workout_sessions")
+    .select("status")
+    .eq("id", sessionId)
+    .single();
+
+  if (session?.status === "completed") {
+    await supabase
+      .from("workout_sessions")
+      .update({ status: "in_progress", completed_at: null })
+      .eq("id", sessionId);
+  }
+
   redirect(`/session/${sessionId}`);
 }
