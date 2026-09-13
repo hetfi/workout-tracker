@@ -23,17 +23,35 @@ export default async function TodayPage() {
     .order("created_at", { ascending: true })
     .limit(10);
 
-  // Active session（in_progress → not_started → completed の優先順）
+  const sessionList = sessions ?? [];
+
+  // 1. in_progress / not_started が最優先（セット数に関わらず有効）
   const activeSession =
-    sessions?.find((s) => s.status === "in_progress") ??
-    sessions?.find((s) => s.status === "not_started") ??
-    sessions?.[0];
+    sessionList.find((s) => s.status === "in_progress") ??
+    sessionList.find((s) => s.status === "not_started");
 
   if (activeSession) {
     redirect(`/session/${activeSession.id}`);
   }
 
-  // セッションなし → 作成オプションを表示
+  // 2. completed セッションは実際に完了セットがあるものだけ有効扱い
+  const completedSessions = sessionList.filter((s) => s.status === "completed");
+  if (completedSessions.length > 0) {
+    const { data: setCounts } = await supabase
+      .from("workout_sets")
+      .select("session_id")
+      .in("session_id", completedSessions.map((s) => s.id))
+      .eq("status", "completed")
+      .limit(1);
+
+    if (setCounts && setCounts.length > 0) {
+      // 完了セットがある → 最新の completed セッションへ
+      const sessionId = setCounts[0].session_id;
+      redirect(`/session/${sessionId}`);
+    }
+  }
+
+  // 3. 有効なセッションなし → 作成オプションを表示
   return (
     <div className="py-6 space-y-5">
       <div>
