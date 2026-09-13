@@ -1,5 +1,8 @@
 export type MuscleCategory = 'chest' | 'shoulder' | 'arm' | 'back' | 'leg' | 'ab' | 'cardio';
 
+/** 全画面共通の表示順序: 胸→肩→背→脚→腕→腹→有酸素 */
+export const CATEGORY_ORDER: MuscleCategory[] = ['chest', 'shoulder', 'back', 'leg', 'arm', 'ab', 'cardio'];
+
 export const CATEGORY_COLORS: Record<MuscleCategory, string> = {
   chest:    '#EF4444',  // 赤
   shoulder: '#F97316',  // オレンジ
@@ -39,6 +42,5 @@ export function classifyExercise(name: string): MuscleCategory {
 
 export function getSessionCategories(names: string[]): MuscleCategory[] {
   const set = new Set(names.map(classifyExercise));
-  const order: MuscleCategory[] = ['chest', 'shoulder', 'arm', 'back', 'leg', 'ab', 'cardio'];
-  return order.filter((c) => set.has(c));
+  return CATEGORY_ORDER.filter((c) => set.has(c));
 }

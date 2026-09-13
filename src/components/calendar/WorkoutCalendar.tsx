@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getCalendarData } from "@/app/(app)/home/actions";
-import { CATEGORY_COLORS, CATEGORY_LABELS, MuscleCategory } from "@/lib/muscleCategory";
+import { CATEGORY_COLORS, CATEGORY_LABELS, CATEGORY_ORDER, MuscleCategory } from "@/lib/muscleCategory";
 
 interface WorkoutCalendarProps {
   initialYear: number;
@@ -73,7 +73,7 @@ export function WorkoutCalendar({
   const formatDateStr = (day: number) =>
     `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-  const allCategories = Object.keys(CATEGORY_LABELS) as MuscleCategory[];
+  const allCategories = CATEGORY_ORDER;
 
   return (
     <div className="bg-[#2C2C2E] rounded-xl p-4">

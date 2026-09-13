@@ -8,6 +8,7 @@ export interface ManualExercise {
   sets: number;
   repsMin: number;
   repsMax: number;
+  isOneArm?: boolean;
 }
 
 export async function getPastExercises(): Promise<
@@ -103,6 +104,7 @@ export async function addManualSession(
     planned_reps_max: e.repsMax,
     rest_seconds: 90,
     sort_order: i,
+    is_one_arm: e.isOneArm ?? false,
   }));
   await supabase.from("workout_session_exercises").insert(sessionExercises);
 

@@ -16,9 +16,9 @@ interface ExerciseEditFormProps {
 const CATEGORIES: MuscleCategory[] = [
   "chest",
   "shoulder",
-  "arm",
   "back",
   "leg",
+  "arm",
   "ab",
   "cardio",
 ];

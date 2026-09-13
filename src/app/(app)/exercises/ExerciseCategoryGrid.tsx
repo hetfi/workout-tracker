@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   classifyExercise,
   CATEGORY_COLORS,
   CATEGORY_LABELS,
   type MuscleCategory,
 } from "@/lib/muscleCategory";
+import { addNewExercise } from "./actions";
 
 interface Exercise {
   id: string;
@@ -21,11 +23,15 @@ interface Props {
 }
 
 const CATEGORIES: MuscleCategory[] = [
-  "chest", "shoulder", "arm", "back", "leg", "ab", "cardio",
+  "chest", "shoulder", "back", "leg", "arm", "ab", "cardio",
 ];
 
 export function ExerciseCategoryGrid({ exercises }: Props) {
+  const router = useRouter();
   const [active, setActive] = useState<MuscleCategory>("chest");
+  const [newName, setNewName] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const effectiveCategory = (ex: Exercise): MuscleCategory =>
     ex.muscle_category
@@ -33,6 +39,17 @@ export function ExerciseCategoryGrid({ exercises }: Props) {
       : classifyExercise(ex.name);
 
   const filtered = exercises.filter((ex) => effectiveCategory(ex) === active);
+
+  const handleAddExercise = () => {
+    const name = newName.trim();
+    if (!name) return;
+    startTransition(async () => {
+      await addNewExercise(name, active);
+      setNewName("");
+      setShowAdd(false);
+      router.refresh();
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -72,8 +89,8 @@ export function ExerciseCategoryGrid({ exercises }: Props) {
       </div>
 
       {/* Exercise list */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-10 text-[#8E8E93] text-sm">
+      {filtered.length === 0 && !showAdd ? (
+        <div className="text-center py-8 text-[#8E8E93] text-sm">
           {CATEGORY_LABELS[active]}の種目はまだありません
         </div>
       ) : (
@@ -94,6 +111,41 @@ export function ExerciseCategoryGrid({ exercises }: Props) {
             </Link>
           ))}
         </div>
+      )}
+
+      {/* New exercise form */}
+      {showAdd ? (
+        <div className="flex gap-2 mt-2">
+          <input
+            type="text"
+            placeholder={`${CATEGORY_LABELS[active]}の種目名...`}
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAddExercise(); }}
+            autoFocus
+            className="flex-1 px-3 py-2 rounded-xl bg-[#3A3A3C] border border-white/[0.12] text-white placeholder:text-[#8E8E93] text-sm focus:outline-none focus:border-[#CAFF4D]"
+          />
+          <button
+            onClick={handleAddExercise}
+            disabled={!newName.trim() || isPending}
+            className="px-4 py-2 rounded-xl bg-[#CAFF4D] text-black text-sm font-semibold disabled:opacity-40"
+          >
+            追加
+          </button>
+          <button
+            onClick={() => { setShowAdd(false); setNewName(""); }}
+            className="px-3 py-2 rounded-xl bg-white/[0.08] text-[#8E8E93] text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowAdd(true)}
+          className="w-full mt-2 py-2.5 rounded-xl border border-dashed border-white/[0.15] text-[#8E8E93] text-sm hover:border-white/30 hover:text-white transition-colors"
+        >
+          ＋ {CATEGORY_LABELS[active]}の種目を追加
+        </button>
       )}
     </div>
   );

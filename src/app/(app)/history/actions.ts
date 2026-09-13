@@ -85,20 +85,30 @@ export async function getHistorySessions(
     exercisesBySession[ex.session_id].push(ex);
   }
 
-  return sessions.map((session) => ({
-    id: session.id,
-    date: session.date,
-    title: session.title,
-    status: session.status,
-    exercises: (exercisesBySession[session.id] ?? []).map((ex) => {
-      const exSets = setsByExId[ex.id] ?? [];
+  return sessions
+    .map((session) => {
+      const exercises = (exercisesBySession[session.id] ?? [])
+        .map((ex) => {
+          const exSets = setsByExId[ex.id] ?? [];
+          return {
+            name: ex.exercise_name,
+            completedSets: exSets.length,
+            totalVolume: Math.round(
+              exSets.reduce((acc, s) => acc + s.weight * s.reps, 0)
+            ),
+          };
+        })
+        // 完了セット数が0の種目は除外
+        .filter((ex) => ex.completedSets > 0);
+
       return {
-        name: ex.exercise_name,
-        completedSets: exSets.length,
-        totalVolume: Math.round(
-          exSets.reduce((acc, s) => acc + s.weight * s.reps, 0)
-        ),
+        id: session.id,
+        date: session.date,
+        title: session.title,
+        status: session.status,
+        exercises,
       };
-    }),
-  }));
+    })
+    // 完了セットが1件もないセッションは除外
+    .filter((s) => s.exercises.length > 0 || s.status === "in_progress");
 }

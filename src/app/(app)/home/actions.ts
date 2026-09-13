@@ -46,6 +46,19 @@ export async function startTrainingFromPlan(planId: string) {
 
   // Create session exercises from plan exercises
   if (planExercises && planExercises.length > 0) {
+    // Look up is_one_arm from exercises master for each exercise name
+    const exerciseNames = planExercises.map((pe) => pe.exercise_name);
+    const { data: exerciseMaster } = await supabase
+      .from("exercises")
+      .select("name, is_one_arm")
+      .eq("user_id", user.id)
+      .in("name", exerciseNames);
+
+    const oneArmMap: Record<string, boolean> = {};
+    for (const ex of exerciseMaster ?? []) {
+      oneArmMap[ex.name] = Boolean(ex.is_one_arm);
+    }
+
     const sessionExercises = planExercises.map((pe) => ({
       user_id: user.id,
       session_id: session.id,
@@ -56,6 +69,7 @@ export async function startTrainingFromPlan(planId: string) {
       planned_reps_max: pe.reps_max,
       rest_seconds: pe.rest_seconds,
       sort_order: pe.sort_order,
+      is_one_arm: oneArmMap[pe.exercise_name] ?? false,
     }));
 
     await supabase.from("workout_session_exercises").insert(sessionExercises);

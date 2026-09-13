@@ -18,6 +18,7 @@ interface AddExercisesFormProps {
 
 interface SelectedExercise extends ManualExercise {
   key: number;
+  isOneArm: boolean;
 }
 
 let keyCounter = 0;
@@ -25,9 +26,9 @@ let keyCounter = 0;
 const TABS = [
   { key: "chest", label: "胸", color: CATEGORY_COLORS.chest },
   { key: "shoulder", label: "肩", color: CATEGORY_COLORS.shoulder },
-  { key: "arm", label: "腕", color: CATEGORY_COLORS.arm },
   { key: "back", label: "背", color: CATEGORY_COLORS.back },
   { key: "leg", label: "脚", color: CATEGORY_COLORS.leg },
+  { key: "arm", label: "腕", color: CATEGORY_COLORS.arm },
   { key: "ab", label: "腹", color: CATEGORY_COLORS.ab },
   { key: "cardio", label: "有酸素", color: CATEGORY_COLORS.cardio },
   { key: "custom", label: "＋新規", color: null },
@@ -62,11 +63,11 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
 
   const selectedNames = new Set(selected.map((e) => e.name));
 
-  const addExercise = (name: string) => {
+  const addExercise = (name: string, isOneArm: boolean = false) => {
     if (selectedNames.has(name)) return;
     setSelected((prev) => [
       ...prev,
-      { key: keyCounter++, name, sets: 3, repsMin: 8, repsMax: 12 },
+      { key: keyCounter++, name, sets: 3, repsMin: 8, repsMax: 12, isOneArm },
     ]);
   };
 
@@ -160,7 +161,7 @@ export function AddExercisesForm({ date }: AddExercisesFormProps) {
               return (
                 <button
                   key={e.id}
-                  onClick={() => addExercise(e.name)}
+                  onClick={() => addExercise(e.name, Boolean(e.is_one_arm))}
                   disabled={isSelected}
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm border transition-colors ${
                     isSelected
