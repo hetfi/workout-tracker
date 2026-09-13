@@ -223,27 +223,22 @@ export default async function DayPage({ params }: PageProps) {
               </li>
             ))}
           </ul>
-        </div>
-      )}
 
-      {/* セッション編集リンク（0セットのものは非表示） */}
-      {editableSessions.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-[#8E8E93] px-1">
-            セッション（編集）
-          </p>
-          {editableSessions.map((s) => (
-            <Link
-              key={s.id}
-              href={`/session/${s.id}`}
-              className="flex items-center justify-between rounded-xl bg-[#2C2C2E] border border-white/[0.08] px-4 py-3"
-            >
-              <span className="text-sm text-white truncate flex-1">{s.title}</span>
-              <span className="text-xs text-[#CAFF4D] shrink-0 ml-2">
-                編集 →
-              </span>
-            </Link>
-          ))}
+          {/* 詳細リンク（最も関連するセッションへ） */}
+          {editableSessions.length > 0 && (() => {
+            const primary =
+              editableSessions.find((s) => s.status === "in_progress") ??
+              editableSessions.find((s) => s.status === "not_started") ??
+              editableSessions[editableSessions.length - 1];
+            return (
+              <Link
+                href={`/session/${primary.id}`}
+                className="block text-xs text-[#CAFF4D] text-right"
+              >
+                詳細 →
+              </Link>
+            );
+          })()}
         </div>
       )}
     </div>
