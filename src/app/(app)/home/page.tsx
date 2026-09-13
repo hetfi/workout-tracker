@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import { startTrainingFromPlan } from "./actions";
 
 async function getTodayData(userId: string) {
   const supabase = await createClient();
@@ -145,12 +146,14 @@ export default async function HomePage() {
               完了済み
             </span>
           ) : (
-            <Link
-              href={`/session/${completedSession ?? "new"}?planId=${todayPlan.id}`}
-              className="block mt-3 rounded-xl bg-blue-600 text-white text-center py-3 font-semibold"
-            >
-              トレーニング開始
-            </Link>
+            <form action={startTrainingFromPlan.bind(null, todayPlan.id)}>
+              <button
+                type="submit"
+                className="block w-full mt-3 rounded-xl bg-blue-600 text-white text-center py-3 font-semibold"
+              >
+                トレーニング開始
+              </button>
+            </form>
           )}
         </Card>
       )}
