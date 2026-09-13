@@ -39,6 +39,26 @@ export default async function DayPage({ params }: PageProps) {
 
   const sessionList = sessions ?? [];
 
+  // 完了セットがあるセッションIDを把握（0セットのセッションを編集リストから除外するため）
+  const allSessionIds = sessionList.map((s) => s.id);
+  const sessionsWithSets = new Set<string>();
+  if (allSessionIds.length > 0) {
+    const { data: setRows } = await supabase
+      .from("workout_sets")
+      .select("session_id")
+      .in("session_id", allSessionIds)
+      .eq("status", "completed");
+    for (const r of setRows ?? []) sessionsWithSets.add(r.session_id);
+  }
+
+  // 編集リストに表示するセッション：完了セットがある or アクティブ
+  const editableSessions = sessionList.filter(
+    (s) =>
+      s.status === "in_progress" ||
+      s.status === "not_started" ||
+      sessionsWithSets.has(s.id)
+  );
+
   if (sessionList.length === 0) {
     return (
       <div className="py-6 space-y-5">
@@ -206,13 +226,13 @@ export default async function DayPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* セッション編集リンク */}
-      {sessionList.length > 0 && (
+      {/* セッション編集リンク（0セットのものは非表示） */}
+      {editableSessions.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-medium text-[#8E8E93] px-1">
             セッション（編集）
           </p>
-          {sessionList.map((s) => (
+          {editableSessions.map((s) => (
             <Link
               key={s.id}
               href={`/session/${s.id}`}

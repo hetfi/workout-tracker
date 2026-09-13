@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from "react";
 import {
   getPastExercises,
-  addManualSession,
+  addExercisesForDate,
   addExercisesToSession,
   ManualExercise,
 } from "./actions";
@@ -108,7 +108,8 @@ export function AddExercisesForm({ date, sessionId }: AddExercisesFormProps) {
         if (sessionId) {
           await addExercisesToSession(sessionId, selected);
         } else {
-          await addManualSession(date, selected);
+          // アクティブセッションがあれば自動検出して追加、なければ新規作成
+          await addExercisesForDate(date, selected);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "エラーが発生しました");

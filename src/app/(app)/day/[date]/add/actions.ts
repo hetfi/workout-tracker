@@ -115,6 +115,38 @@ export async function addManualSession(
   redirect(`/session/${session.id}`);
 }
 
+/**
+ * 日付のアクティブセッション（in_progress / not_started）に種目を追加する。
+ * アクティブセッションがなければ新規セッションを作成する。
+ */
+export async function addExercisesForDate(
+  date: string,
+  exercises: ManualExercise[]
+): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: activeSessions } = await supabase
+    .from("workout_sessions")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("date", date)
+    .in("status", ["not_started", "in_progress"])
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (activeSessions && activeSessions.length > 0) {
+    // アクティブセッションへ追加
+    return addExercisesToSession(activeSessions[0].id, exercises);
+  }
+
+  // なければ新規作成
+  return addManualSession(date, exercises);
+}
+
 /** 既存セッションに種目を追加する */
 export async function addExercisesToSession(
   sessionId: string,
