@@ -52,6 +52,10 @@ export interface Exercise extends BaseRecord {
   defaultRestSeconds: number;
   notes: string | null;
   deletedAt: string | null;
+  /** Muscle group category: 'chest'|'shoulder'|'arm'|'back'|'leg'|'ab'|'cardio'|null */
+  muscleCategory: string | null;
+  /** Whether this is a unilateral (one-arm/one-leg) exercise */
+  isOneArm: boolean;
 }
 
 export interface ExerciseAlias extends BaseRecord {
@@ -126,6 +130,8 @@ export interface WorkoutSessionExercise extends BaseRecord {
   sortOrder: number;
   skipped: boolean;
   notes: string | null;
+  /** Whether this is recorded as a unilateral (one-arm) exercise */
+  isOneArm: boolean;
 }
 
 export type SetStatus = "pending" | "completed" | "skipped";
@@ -142,6 +148,8 @@ export interface WorkoutSet extends BaseRecord {
   notes: string | null;
   /** Idempotency key to prevent duplicate saves */
   clientId: string;
+  /** For one-arm exercises: 'L' | 'R' | null (null = both arms / not one-arm) */
+  side: string | null;
 }
 
 // ------ Rest Timer ------
@@ -232,6 +240,7 @@ export interface LocalDraftSet {
   status: SetStatus;
   completedAt: string | null;
   notes: string | null;
+  side?: string | null;
 }
 
 export interface LocalDraftTimer {

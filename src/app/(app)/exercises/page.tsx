@@ -18,7 +18,7 @@ export default async function ExercisesPage() {
 
   const { data: exercises } = await supabase
     .from("exercises")
-    .select("id, name, exercise_type, weight_type, target_muscles")
+    .select("id, name, exercise_type, weight_type, target_muscles, muscle_category, is_one_arm")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .order("name");
@@ -61,7 +61,9 @@ export default async function ExercisesPage() {
       ) : (
         <div className="space-y-2">
           {exerciseList.map((ex) => {
-            const category = classifyExercise(ex.name);
+            const category = ex.muscle_category
+              ? (ex.muscle_category as keyof typeof CATEGORY_COLORS)
+              : classifyExercise(ex.name);
             return (
               <Link key={ex.id} href={`/exercises/${ex.id}`} className="block">
                 <Card className="flex items-center justify-between">
@@ -76,6 +78,11 @@ export default async function ExercisesPage() {
                       >
                         {CATEGORY_LABELS[category]}
                       </span>
+                      {ex.is_one_arm && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
+                          片手
+                        </span>
+                      )}
                       <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
                         {typeLabels[ex.exercise_type] ?? ex.exercise_type}
                       </span>

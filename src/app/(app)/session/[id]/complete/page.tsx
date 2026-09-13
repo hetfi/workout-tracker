@@ -205,7 +205,7 @@ export default function CompletePage({
                 <div className="mt-1 space-y-0.5">
                   {exSets.map((s) => (
                     <p key={s.id} className="text-xs text-gray-500 dark:text-gray-400">
-                      {s.setNumber}セット: {s.weight}kg × {s.reps}回
+                      {s.setNumber}セット{s.side ? ` (${s.side})` : ""}: {s.weight}kg × {s.reps}回
                     </p>
                   ))}
                 </div>

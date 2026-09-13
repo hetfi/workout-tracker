@@ -21,6 +21,8 @@ function toExercise(row: Record<string, unknown>): Exercise {
     defaultRestSeconds: Number(row.default_rest_seconds),
     notes: (row.notes as string) ?? null,
     deletedAt: (row.deleted_at as string) ?? null,
+    muscleCategory: (row.muscle_category as string) ?? null,
+    isOneArm: Boolean(row.is_one_arm),
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -123,6 +125,25 @@ export async function updateExercise(
 
   if (error) throw error;
   return toExercise(data);
+}
+
+export async function updateExerciseMeta(
+  id: string,
+  updates: { muscleCategory?: string | null; isOneArm?: boolean }
+): Promise<void> {
+  const supabase = createClient();
+  const dbUpdates: Record<string, unknown> = {};
+  if (updates.muscleCategory !== undefined) {
+    dbUpdates.muscle_category = updates.muscleCategory;
+  }
+  if (updates.isOneArm !== undefined) {
+    dbUpdates.is_one_arm = updates.isOneArm;
+  }
+  const { error } = await supabase
+    .from("exercises")
+    .update(dbUpdates)
+    .eq("id", id);
+  if (error) throw error;
 }
 
 export async function softDeleteExercise(id: string): Promise<void> {

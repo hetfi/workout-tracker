@@ -24,15 +24,16 @@ const baseSession: ExportSession = {
         notes: "左側が先に限界。痛みなし。",
       },
       sets: [
-        { setNumber: 1, weight: 60, reps: 8, status: "completed", notes: null },
-        { setNumber: 2, weight: 60, reps: 8, status: "completed", notes: null },
-        { setNumber: 3, weight: 60, reps: 7, status: "completed", notes: null },
+        { setNumber: 1, weight: 60, reps: 8, status: "completed", notes: null, side: null },
+        { setNumber: 2, weight: 60, reps: 8, status: "completed", notes: null, side: null },
+        { setNumber: 3, weight: 60, reps: 7, status: "completed", notes: null, side: null },
         {
           setNumber: 4,
           weight: 57.5,
           reps: 8,
           status: "completed",
           notes: null,
+          side: null,
         },
       ],
     },
@@ -52,6 +53,7 @@ const baseSession: ExportSession = {
           reps: 12,
           status: "completed",
           notes: null,
+          side: null,
         },
         {
           setNumber: 2,
@@ -59,6 +61,7 @@ const baseSession: ExportSession = {
           reps: 10,
           status: "completed",
           notes: null,
+          side: null,
         },
         {
           setNumber: 3,
@@ -66,6 +69,7 @@ const baseSession: ExportSession = {
           reps: 11,
           status: "completed",
           notes: null,
+          side: null,
         },
       ],
     },
@@ -136,8 +140,8 @@ describe("generateChatGPTText", () => {
             notes: null,
           },
           sets: [
-            { setNumber: 1, weight: 80, reps: 10, status: "completed", notes: null },
-            { setNumber: 2, weight: 80, reps: 9, status: "skipped", notes: null },
+            { setNumber: 1, weight: 80, reps: 10, status: "completed", notes: null, side: null },
+            { setNumber: 2, weight: 80, reps: 9, status: "skipped", notes: null, side: null },
           ],
         },
       ],
@@ -169,5 +173,30 @@ describe("generateChatGPTText", () => {
     const text = generateChatGPTText(withNotes);
     expect(text).toContain("痛み・違和感：左肘の痛み：1/10");
     expect(text).toContain("全体メモ：");
+  });
+
+  it("shows side label for one-arm sets", () => {
+    const withSide: ExportSession = {
+      ...baseSession,
+      exercises: [
+        {
+          exercise: {
+            exerciseName: "ダンベルカール",
+            plannedSets: 3,
+            plannedRepsTarget: { min: 10, max: 12 },
+            restSeconds: 60,
+            skipped: false,
+            notes: null,
+          },
+          sets: [
+            { setNumber: 1, weight: 15, reps: 12, status: "completed", notes: null, side: "L" },
+            { setNumber: 1, weight: 15, reps: 12, status: "completed", notes: null, side: "R" },
+          ],
+        },
+      ],
+    };
+    const text = generateChatGPTText(withSide);
+    expect(text).toContain("1セット目 (L)：15kg × 12回");
+    expect(text).toContain("1セット目 (R)：15kg × 12回");
   });
 });

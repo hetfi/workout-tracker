@@ -44,6 +44,7 @@ function toSessionExercise(row: Record<string, unknown>): WorkoutSessionExercise
     sortOrder: Number(row.sort_order),
     skipped: Boolean(row.skipped),
     notes: (row.notes as string) ?? null,
+    isOneArm: Boolean(row.is_one_arm),
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -62,6 +63,7 @@ function toSet(row: Record<string, unknown>): WorkoutSet {
     completedAt: (row.completed_at as string) ?? null,
     notes: (row.notes as string) ?? null,
     clientId: row.client_id as string,
+    side: (row.side as string) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -155,6 +157,7 @@ export async function createSessionFromPlan(
       rest_seconds: pe.restSeconds,
       sort_order: pe.sortOrder,
       notes: pe.notes,
+      is_one_arm: false,
     });
   }
 
@@ -261,6 +264,7 @@ export async function upsertSet(
     | "completedAt"
     | "notes"
     | "clientId"
+    | "side"
   >
 ): Promise<WorkoutSet> {
   const supabase = createClient();
@@ -283,6 +287,7 @@ export async function upsertSet(
         completed_at: setData.completedAt,
         notes: setData.notes,
         client_id: setData.clientId,
+        side: setData.side ?? null,
       },
       { onConflict: "client_id", ignoreDuplicates: false }
     )

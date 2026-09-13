@@ -37,7 +37,7 @@ export interface ExportExercise {
   > & { weightType?: string };
   sets: Pick<
     WorkoutSet,
-    "setNumber" | "weight" | "reps" | "status" | "notes"
+    "setNumber" | "weight" | "reps" | "status" | "notes" | "side"
   >[];
 }
 
@@ -103,12 +103,13 @@ export function generateChatGPTText(data: ExportSession): string {
     lines.push(`インターバル：${formatRestSeconds(exercise.restSeconds)}`);
 
     for (const s of sets.sort((a, b) => a.setNumber - b.setNumber)) {
+      const sideLabel = s.side ? ` (${s.side})` : "";
       if (s.status === "completed") {
         lines.push(
-          `${s.setNumber}セット目：${formatWeight(s.weight, exercise.weightType)} × ${s.reps}回`
+          `${s.setNumber}セット目${sideLabel}：${formatWeight(s.weight, exercise.weightType)} × ${s.reps}回`
         );
       } else if (s.status === "skipped") {
-        lines.push(`${s.setNumber}セット目：実施せず`);
+        lines.push(`${s.setNumber}セット目${sideLabel}：実施せず`);
       }
     }
 

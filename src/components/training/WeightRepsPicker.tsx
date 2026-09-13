@@ -12,6 +12,8 @@ interface WeightRepsPickerProps {
   /** Set metadata */
   setNumber: number;
   exerciseName: string;
+  /** For one-arm exercises: 'L' or 'R' */
+  side?: "L" | "R";
   /** Current values */
   weight: number;
   reps: number;
@@ -31,6 +33,7 @@ export function WeightRepsPicker({
   onClose,
   setNumber,
   exerciseName,
+  side,
   weight: initialWeight,
   reps: initialReps,
   smallStep = 0.5,
@@ -110,8 +113,10 @@ export function WeightRepsPicker({
     </button>
   );
 
+  const sideLabel = side ? ` (${side})` : "";
+
   return (
-    <BottomSheet open={open} onClose={onClose} title={`${exerciseName} - ${setNumber}セット目`}>
+    <BottomSheet open={open} onClose={onClose} title={`${exerciseName} - ${setNumber}セット目${sideLabel}`}>
       <div className="space-y-6">
         {/* Weight section */}
         <div>

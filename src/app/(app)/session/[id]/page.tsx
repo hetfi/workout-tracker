@@ -121,6 +121,7 @@ export default function SessionPage({
               completedAt: null,
               notes: null,
               clientId: newClientId(),
+              side: null,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             }));
@@ -138,15 +139,32 @@ export default function SessionPage({
             const exId = draftSet.sessionExerciseId;
             if (grouped[exId]) {
               const idx = grouped[exId].findIndex(
-                (s) =>
-                  s.clientId === draftSet.clientId ||
-                  s.setNumber === draftSet.setNumber
+                (s) => s.clientId === draftSet.clientId
               );
               if (idx !== -1) {
                 grouped[exId][idx] = {
                   ...grouped[exId][idx],
                   ...draftSet,
+                  side: draftSet.side ?? null,
                 };
+              } else if (draftSet.side) {
+                // One-arm set not in presets — reconstruct and push
+                grouped[exId].push({
+                  id: crypto.randomUUID(),
+                  userId: "",
+                  sessionExerciseId: draftSet.sessionExerciseId,
+                  sessionId,
+                  setNumber: draftSet.setNumber,
+                  weight: draftSet.weight,
+                  reps: draftSet.reps,
+                  status: draftSet.status,
+                  completedAt: draftSet.completedAt,
+                  notes: draftSet.notes,
+                  clientId: draftSet.clientId,
+                  side: draftSet.side,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                });
               }
             }
           }
@@ -222,6 +240,7 @@ export default function SessionPage({
               status: s.status,
               completedAt: s.completedAt,
               notes: s.notes,
+              side: s.side,
             })),
           });
         } catch {
@@ -238,9 +257,19 @@ export default function SessionPage({
       // Optimistically update UI
       setSetsMap((prev) => {
         const updated = { ...prev };
-        updated[exerciseId] = prev[exerciseId].map((s) =>
-          s.setNumber === completedSet.setNumber ? completedSet : s
+        const existingIdx = (prev[exerciseId] ?? []).findIndex(
+          (s) =>
+            s.setNumber === completedSet.setNumber &&
+            s.side === completedSet.side
         );
+        if (existingIdx !== -1) {
+          updated[exerciseId] = prev[exerciseId].map((s, i) =>
+            i === existingIdx ? completedSet : s
+          );
+        } else {
+          // One-arm set not yet in presets — push it
+          updated[exerciseId] = [...(prev[exerciseId] ?? []), completedSet];
+        }
         saveDraft(updated);
         return updated;
       });
@@ -258,6 +287,7 @@ export default function SessionPage({
           completedAt: completedSet.completedAt,
           notes: completedSet.notes,
           clientId: completedSet.clientId,
+          side: completedSet.side,
         });
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2000);
