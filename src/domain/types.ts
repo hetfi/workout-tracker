@@ -203,6 +203,8 @@ export interface ParsedExercise {
   notes: string | null;
   /** When true, repsTarget stores duration in minutes; weight is always 0 */
   isDuration?: boolean;
+  /** When true, this is a unilateral (one-arm/one-leg) exercise */
+  isOneArm?: boolean;
   /** Muscle category from ChatGPT output (胸/肩/背/脚/腕/腹/有酸素) */
   muscleCategory?: string | null;
 }

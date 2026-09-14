@@ -118,15 +118,16 @@ export async function saveParsedWorkout(
     const matched = await findExerciseByNameOrAlias(ex.name);
     if (matched) {
       exerciseId = matched.id;
-      // isDuration / muscleCategory フラグが変わっていたら更新
+      // isDuration / muscleCategory / isOneArm フラグが変わっていたら更新
       const updates: Record<string, unknown> = {};
       if (ex.isDuration && !matched.isDuration) updates.is_duration = true;
       if (ex.muscleCategory && !matched.muscleCategory) updates.muscle_category = ex.muscleCategory;
+      if (ex.isOneArm && !matched.isOneArm) updates.is_one_arm = true;
       if (Object.keys(updates).length > 0) {
         await supabase.from("exercises").update(updates).eq("id", matched.id);
       }
     } else {
-      // Create a new exercise with defaults
+      // Create a new exercise with defaults from parsed data
       try {
         const newEx = await createExercise({
           name: ex.name,
@@ -135,14 +136,15 @@ export async function saveParsedWorkout(
           weightType: "total",
           smallWeightStep: 2.5,
           largeWeightStep: 5.0,
-          defaultRestSeconds: ex.restSeconds,
+          defaultRestSeconds: ex.restSeconds > 0 ? ex.restSeconds : 90,
           notes: null,
         });
         exerciseId = newEx.id;
-        // Set is_duration / muscle_category when needed
+        // Set is_duration / muscle_category / is_one_arm when needed
         const newUpdates: Record<string, unknown> = {};
         if (ex.isDuration) newUpdates.is_duration = true;
         if (ex.muscleCategory) newUpdates.muscle_category = ex.muscleCategory;
+        if (ex.isOneArm) newUpdates.is_one_arm = true;
         if (Object.keys(newUpdates).length > 0 && newEx.id) {
           await supabase.from("exercises").update(newUpdates).eq("id", newEx.id);
         }

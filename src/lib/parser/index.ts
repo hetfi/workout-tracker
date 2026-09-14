@@ -125,6 +125,21 @@ export function parseExerciseLine(line: string): ParsedExercise | null {
   const sets = parseInt(setsNorm, 10);
   if (!sets || sets <= 0) return null;
 
+  // Parse muscle + one_arm early (needed for duration path too)
+  const MUSCLE_MAP_EARLY: Record<string, string> = {
+    胸: "chest", chest: "chest",
+    肩: "shoulder", shoulder: "shoulder",
+    背: "back", 背中: "back", back: "back",
+    脚: "leg", 下半身: "leg", leg: "leg",
+    腕: "arm", arm: "arm",
+    腹: "ab", 腹筋: "ab", ab: "ab",
+    有酸素: "cardio", カーディオ: "cardio", cardio: "cardio",
+  };
+  const muscleCategoryEarly = (() => {
+    const r = fields["muscle"] ?? fields["category"] ?? null;
+    return r ? (MUSCLE_MAP_EARLY[r.trim()] ?? null) : null;
+  })();
+
   // duration (時間記録: "duration: 20" or "duration: 20分")
   const durationRaw = fields["duration"] ?? fields["time"] ?? null;
   if (durationRaw) {
@@ -145,6 +160,7 @@ export function parseExerciseLine(line: string): ParsedExercise | null {
           restSeconds,
           notes: noteRaw ? noteRaw.trim() : null,
           isDuration: true,
+          muscleCategory: muscleCategoryEarly,
         };
       }
     }
@@ -171,20 +187,14 @@ export function parseExerciseLine(line: string): ParsedExercise | null {
   const noteRaw = fields["note"] ?? fields["notes"] ?? null;
   const notes = noteRaw ? noteRaw.trim() : null;
 
-  // muscle category
-  const muscleRaw = fields["muscle"] ?? fields["category"] ?? null;
-  const MUSCLE_MAP: Record<string, string> = {
-    胸: "chest", chest: "chest",
-    肩: "shoulder", shoulder: "shoulder",
-    背: "back", 背中: "back", back: "back",
-    脚: "leg", 下半身: "leg", leg: "leg",
-    腕: "arm", arm: "arm",
-    腹: "ab", 腹筋: "ab", ab: "ab",
-    有酸素: "cardio", カーディオ: "cardio", cardio: "cardio",
-  };
-  const muscleCategory = muscleRaw
-    ? (MUSCLE_MAP[muscleRaw.trim()] ?? null)
-    : null;
+  // muscle category (reuse early parse)
+  const muscleCategory = muscleCategoryEarly;
+
+  // one_arm
+  const oneArmRaw = fields["one_arm"] ?? fields["one-arm"] ?? null;
+  const isOneArm = oneArmRaw
+    ? oneArmRaw.trim().toLowerCase() === "true" || oneArmRaw.trim() === "1"
+    : false;
 
   const exercise: ParsedExercise = {
     name,
@@ -193,6 +203,7 @@ export function parseExerciseLine(line: string): ParsedExercise | null {
     restSeconds,
     notes,
     muscleCategory,
+    ...(isOneArm ? { isOneArm: true } : {}),
   };
 
   // Attach warning marker for caller (warn even when rest is missing)

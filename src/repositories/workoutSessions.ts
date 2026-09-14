@@ -128,13 +128,16 @@ export async function createSessionFromPlan(
 }
 
 /**
- * Create a session from a plan, with explicit isDuration info per exercise name.
- * Used by the import flow where we know which exercises are duration from parsed data.
+ * Create a session from a plan, with explicit is_one_arm info per exercise name.
+ * Used by the import flow where we know which exercises are one-arm from parsed data.
+ * Note: is_duration is NOT stored in workout_session_exercises —
+ *       TodayView reads it from the exercises master table at runtime.
  */
 export async function createSessionFromPlanWithDuration(
   plan: WorkoutPlan,
   planExercises: WorkoutPlanExercise[],
-  isDurationByName: Record<string, boolean>
+  isDurationByName: Record<string, boolean>,
+  isOneArmByName: Record<string, boolean> = {}
 ): Promise<WorkoutSession> {
   const supabase = createClient();
   const {
@@ -158,12 +161,13 @@ export async function createSessionFromPlanWithDuration(
   const session = toSession(sessionData);
 
   // Create session exercises (bulk insert — 1 round trip)
+  // NOTE: is_duration is intentionally NOT included here.
+  //       TodayView reads isDuration from the exercises master table at runtime.
   const exerciseRows = planExercises
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((pe) => ({
       user_id: user.id,
       session_id: session.id,
-      exercise_id: pe.exerciseId,
       exercise_name: pe.exerciseName,
       planned_sets: pe.sets,
       planned_reps_min: pe.repsTarget.min,
@@ -171,11 +175,13 @@ export async function createSessionFromPlanWithDuration(
       rest_seconds: pe.restSeconds,
       sort_order: pe.sortOrder,
       notes: pe.notes,
-      is_one_arm: false,
-      is_duration: isDurationByName[pe.exerciseName] ?? false,
+      is_one_arm: isOneArmByName[pe.exerciseName] ?? false,
     }));
   if (exerciseRows.length > 0) {
-    await supabase.from("workout_session_exercises").insert(exerciseRows);
+    const { error: exError } = await supabase
+      .from("workout_session_exercises")
+      .insert(exerciseRows);
+    if (exError) throw exError; // propagate so the caller can show an error toast
   }
 
   return session;
