@@ -220,7 +220,7 @@ export function ExerciseCard({
       : sets.filter((s) => s.status === "completed" && (s.side === "L" || s.side === "R")); // 片手完了 → 両手切替時
 
     if (incompatibleSets.length > 0) {
-      const modeLabel = next ? "片手" : "両手";
+      const modeLabel = next ? "片側ずつ" : "両側";
       const confirmed = window.confirm(
         `${modeLabel}モードに切り替えると、完了済みのセット（${incompatibleSets.length}件）がリセットされます。よろしいですか？`
       );
@@ -389,17 +389,26 @@ export function ExerciseCard({
             <h3 className="font-semibold text-lg text-white break-words min-w-0">
               {sessionExercise.exerciseName}
             </h3>
-            {/* One-arm toggle badge */}
+            {/* One-arm toggle — checkbox style */}
             <button
               onClick={handleToggleOneArm}
-              className={cn(
-                "shrink-0 text-xs px-2 py-0.5 rounded-full font-medium transition-colors border mt-0.5",
-                isOneArmLocal
-                  ? "bg-[#CAFF4D]/20 text-[#CAFF4D] border-[#CAFF4D]/40"
-                  : "bg-white/[0.06] text-[#8E8E93] border-white/[0.08]"
-              )}
+              className="shrink-0 flex items-center gap-1 mt-0.5"
+              aria-pressed={isOneArmLocal}
             >
-              {isOneArmLocal ? "片手" : "両手"}
+              {/* checkbox box */}
+              <span
+                className="w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold shrink-0"
+                style={
+                  isOneArmLocal
+                    ? { backgroundColor: "#CAFF4D", color: "#0D0D0F" }
+                    : { border: "1.5px solid #48484A", backgroundColor: "transparent" }
+                }
+              >
+                {isOneArmLocal ? "✓" : ""}
+              </span>
+              <span className="text-xs" style={{ color: isOneArmLocal ? "#CAFF4D" : "#8E8E93" }}>
+                片側ずつ
+              </span>
             </button>
           </div>
           {!sessionExercise.isDuration && (

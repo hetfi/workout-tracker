@@ -47,7 +47,7 @@ function buildPrompt(existingExercises?: ExistingExercise[]): string {
 
   const lines: string[] = [];
   lines.push(
-    "\n\n【登録済み種目（必ずこの名称をそのまま使ってください。新しい名称は作らないでください）】"
+    "\n\n【登録済み種目について】\n以下の種目を提案する場合は、必ず以下の名称をそのまま使ってください（表記揺れ防止のため）。\nリストにない種目は任意の名称で自由に提案してください。"
   );
 
   // グループ化して見やすくする

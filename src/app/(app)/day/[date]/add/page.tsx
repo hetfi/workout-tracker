@@ -39,7 +39,7 @@ export default async function AddExercisesPage({ params, searchParams }: PagePro
         date={date}
         sessionId={sessionId}
         backTo={backTo}
-        saveTo={sessionId ? `/session/${sessionId}` : "/today"}
+        saveTo={backTo ?? (sessionId ? `/session/${sessionId}` : "/today")}
       />
     </div>
   );
