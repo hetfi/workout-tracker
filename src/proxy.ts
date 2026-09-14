@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+﻿import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * Refreshes Supabase session tokens on every request.
  * Redirects unauthenticated users to /login.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -30,7 +30,7 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session – do NOT remove this call
+  // Refresh session 窶・do NOT remove this call
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -61,3 +61,4 @@ export const config = {
     "/((?!_next/static|_next/image|__nextjs_font|favicon.ico|icons|sw.js|manifest.json|.*\\.png$|.*\\.svg$|.*\\.woff2?$).*)",
   ],
 };
+

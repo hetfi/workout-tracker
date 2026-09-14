@@ -416,8 +416,9 @@ export function ExerciseCard({
   return (
     <Card className="space-y-3">
       {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
+      <div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
           {/* 部位ラベル */}
           {muscleCategory && (
             <span
@@ -453,26 +454,9 @@ export function ExerciseCard({
               </span>
             </button>
           </div>
-          {!sessionExercise.isDuration && (
-            <p className="text-xs text-[#8E8E93] mt-0.5">
-              目安：{sessionExercise.plannedSets}セット×{formatRepsTarget(sessionExercise.plannedRepsTarget)}回
-              {" · "}
-              間隔{formatRestSeconds(sessionExercise.restSeconds)}
-            </p>
-          )}
-          {sessionExercise.notes && (
-            <p className="text-xs mt-0.5" style={{ color: "#64B5F6" }}>
-              ✦ {sessionExercise.notes}
-            </p>
-          )}
-          {previousRecord && (
-            <p className="text-xs mt-0.5" style={{ color: "#8E8E93" }}>
-              {previousRecord}
-            </p>
-          )}
-        </div>
+          </div>
 
-        {/* Progress badge + reorder + delete */}
+          {/* Progress badge + reorder + delete */}
         <div className="shrink-0 flex items-center gap-1">
           {/* 並び替えボタン */}
           {(onMoveUp || onMoveDown) && (
@@ -539,6 +523,24 @@ export function ExerciseCard({
             <span>{completedCount}/{totalCount}</span>
           </div>
         </div>
+      </div>
+      {!sessionExercise.isDuration && (
+        <p className="text-xs text-[#8E8E93] mt-1">
+          目安：{sessionExercise.plannedSets}セット×{formatRepsTarget(sessionExercise.plannedRepsTarget)}回
+          {" · "}
+          間隔{formatRestSeconds(sessionExercise.restSeconds)}
+        </p>
+      )}
+      {sessionExercise.notes && (
+        <p className="text-xs mt-0.5" style={{ color: "#64B5F6" }}>
+          ✦ {sessionExercise.notes}
+        </p>
+      )}
+      {previousRecord && (
+        <p className="text-xs mt-0.5" style={{ color: "#8E8E93" }}>
+          {previousRecord}
+        </p>
+      )}
       </div>
 
       {/* Sets */}
