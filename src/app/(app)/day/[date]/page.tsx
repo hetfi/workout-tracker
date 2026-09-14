@@ -215,6 +215,54 @@ export default async function DayPage({ params }: PageProps) {
 
       <h1 className="text-xl font-bold text-white">{formatJapaneseDate(date)}</h1>
 
+      {/* セッションはあるが完了セットがゼロ → セッションへの入口を表示 */}
+      {mergedExercises.length === 0 && (() => {
+        // editableSessions（in_progress / not_started / 完了セットあり）から優先して選ぶ
+        const primary =
+          editableSessions.find((s) => s.status === "in_progress") ??
+          editableSessions.find((s) => s.status === "not_started") ??
+          editableSessions[0] ??
+          sessionList[sessionList.length - 1]; // 万一 editableSessions が空でも最後のセッションを使う
+
+        if (primary) {
+          return (
+            <div
+              className="rounded-xl p-4 space-y-3"
+              style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <p className="text-sm" style={{ color: "#8E8E93" }}>
+                まだセットが記録されていません
+              </p>
+              <Link
+                href={`/session/${primary.id}`}
+                className="block text-center text-sm py-3 rounded-xl font-medium"
+                style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
+              >
+                実績を記録する →
+              </Link>
+            </div>
+          );
+        }
+        // セッションが全て abandoned などでリンク先なし → 手動追加へ
+        return (
+          <div
+            className="rounded-xl p-4 space-y-3"
+            style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <p className="text-sm" style={{ color: "#8E8E93" }}>
+              この日のトレーニング記録はありません
+            </p>
+            <Link
+              href={`/day/${date}/add`}
+              className="block text-center text-sm py-3 rounded-xl font-medium"
+              style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
+            >
+              ＋ 手動で種目を追加する
+            </Link>
+          </div>
+        );
+      })()}
+
       {/* 実績サマリ（部位カテゴリ別） */}
       {mergedExercises.length > 0 && (() => {
         // カテゴリ別にグループ化
