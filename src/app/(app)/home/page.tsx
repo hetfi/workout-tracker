@@ -318,7 +318,7 @@ export default async function HomePage() {
             className="block text-center text-sm py-3 rounded-xl font-medium"
             style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
           >
-            ＋ 種目を追加
+            ＋ 手動で種目を追加する
           </Link>
         </div>
       ) : allComplete ? (

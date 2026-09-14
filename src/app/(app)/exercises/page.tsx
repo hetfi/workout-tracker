@@ -25,7 +25,7 @@ export default async function ExercisesPage() {
       <div>
         <h1 className="text-xl font-bold text-white">種目</h1>
         <p className="text-xs text-[#8E8E93] mt-0.5">
-          タップしてカテゴリ・片手設定を編集
+          タップして部位カテゴリ・片手設定・インターバル設定を編集
         </p>
       </div>
 

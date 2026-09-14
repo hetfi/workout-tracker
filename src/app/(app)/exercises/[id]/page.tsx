@@ -48,6 +48,7 @@ export default async function ExerciseEditPage({
       </div>
       <ExerciseEditForm
         exerciseId={id}
+        exerciseName={exercise.name}
         currentCategory={currentCategory}
         isOneArm={exercise.is_one_arm ?? false}
         defaultRestSeconds={exercise.default_rest_seconds ?? 90}
