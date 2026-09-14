@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 
 interface BottomSheetProps {
@@ -20,6 +21,12 @@ export function BottomSheet({
   closeOnOverlay = true,
 }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Portal はクライアントサイドでのみ使用可能
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -42,13 +49,13 @@ export function BottomSheet({
     };
   }, [open]);
 
-  return (
+  const content = (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={title}
       className={cn(
-        "fixed inset-0 z-50 flex flex-col justify-end",
+        "fixed inset-0 z-[9999] flex flex-col justify-end",
         "transition-opacity duration-300",
         open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
       )}
@@ -56,10 +63,11 @@ export function BottomSheet({
       {/* Overlay */}
       <div
         className={cn(
-          "absolute inset-0 bg-black/50",
+          "absolute inset-0",
           "transition-opacity duration-300",
           open ? "opacity-100" : "opacity-0"
         )}
+        style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
         onClick={closeOnOverlay ? onClose : undefined}
         aria-hidden="true"
       />
@@ -75,7 +83,7 @@ export function BottomSheet({
           open ? "translate-y-0" : "translate-y-full",
           "max-h-[90vh] flex flex-col"
         )}
-        style={{ backgroundColor: "#2C2C2E" }}
+        style={{ backgroundColor: "#1C1C1E" }}
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1">
@@ -118,4 +126,9 @@ export function BottomSheet({
       </div>
     </div>
   );
+
+  // SSR の場合はポータルなしでレンダリング（非表示）
+  if (!mounted) return null;
+
+  return createPortal(content, document.body);
 }
