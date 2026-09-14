@@ -12,7 +12,6 @@ import { cancelTimersForSession } from "@/repositories/restTimers";
 import { deleteDraftSession, deleteDraftTimer } from "@/lib/storage/draft";
 import { generateChatGPTText } from "@/lib/export";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import type {
   WorkoutSession,
@@ -41,9 +40,8 @@ export default function CompletePage({
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [exercises, setExercises] = useState<WorkoutSessionExercise[]>([]);
   const [setsMap, setSetsMap] = useState<Record<string, WorkoutSet[]>>({});
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
+  // ロード時にデータ取得 + セッション完了を自動保存
   useEffect(() => {
     const load = async () => {
       const [sessionData, exData, setsData] = await Promise.all([
@@ -65,39 +63,26 @@ export default function CompletePage({
         }
       }
       setSetsMap(grouped);
+
+      // 完了を自動保存（タイマー停止・ドラフト削除含む）
+      try {
+        await updateSession(sessionId, {
+          status: "completed",
+          completedAt: new Date().toISOString(),
+        });
+        await Promise.all([
+          cancelTimersForSession(sessionId),
+          deleteDraftSession(sessionId),
+          deleteDraftTimer(sessionId),
+        ]);
+      } catch (err) {
+        console.error("Auto-save failed:", err);
+        // 致命的ではないので画面はそのまま表示
+      }
     };
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
-
-  const calcVolume = () => {
-    return Object.values(setsMap)
-      .flat()
-      .filter((s) => s.status === "completed")
-      .reduce((acc, s) => acc + s.weight * s.reps, 0);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await updateSession(sessionId, {
-        status: "completed",
-        completedAt: new Date().toISOString(),
-      });
-      await Promise.all([
-        cancelTimersForSession(sessionId),
-        deleteDraftSession(sessionId),
-        deleteDraftTimer(sessionId),
-      ]);
-      setSaved(true);
-      showToast("トレーニングを完了しました！", "success");
-    } catch (err) {
-      console.error(err);
-      showToast("保存に失敗しました", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleCopyText = async () => {
     if (!session) return;
@@ -132,7 +117,6 @@ export default function CompletePage({
       await navigator.clipboard.writeText(text);
       showToast("テキストをコピーしました", "success");
     } catch {
-      // Fallback: Web Share API
       if (navigator.share) {
         await navigator.share({ text });
       } else {
@@ -144,110 +128,107 @@ export default function CompletePage({
   if (!session) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-500">読み込み中...</div>
+        <div className="text-[#8E8E93]">読み込み中...</div>
       </div>
     );
   }
 
-  const volume = calcVolume();
+  const volume = Math.round(
+    Object.values(setsMap)
+      .flat()
+      .filter((s) => s.status === "completed")
+      .reduce((acc, s) => acc + s.weight * s.reps, 0)
+  );
   const allSets = Object.values(setsMap).flat();
   const completedCount = allSets.filter((s) => s.status === "completed").length;
   const motivationalMessage = MESSAGES[completedCount % MESSAGES.length];
 
   return (
     <div className="py-6 space-y-5">
+      {/* ヘッダー */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          🎉 お疲れ様でした！
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400">{session.title}</p>
-        <p className="text-blue-600 dark:text-blue-400 font-medium mt-1">
+        <h1 className="text-2xl font-bold text-white">🎉 お疲れ様でした！</h1>
+        <p className="text-[#8E8E93] mt-0.5">{session.title}</p>
+        <p className="font-medium mt-1" style={{ color: "#CAFF4D" }}>
           {motivationalMessage}
         </p>
       </div>
 
-      {/* Summary */}
-      <Card>
-        <div className="grid grid-cols-2 gap-4 text-center">
-          <div>
-            <p className="text-3xl font-bold text-blue-600">{completedCount}</p>
-            <p className="text-xs text-gray-500 mt-1">完了セット</p>
-          </div>
-          <div>
-            <p className="text-3xl font-bold text-blue-600">
-              {Math.round(volume).toLocaleString()}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">kg（総ボリューム）</p>
-          </div>
+      {/* 集計 */}
+      <div
+        className="rounded-xl p-4 grid grid-cols-2 gap-4 text-center"
+        style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
+      >
+        <div>
+          <p className="text-3xl font-bold" style={{ color: "#CAFF4D" }}>{completedCount}</p>
+          <p className="text-xs mt-1" style={{ color: "#8E8E93" }}>完了セット</p>
         </div>
-      </Card>
+        <div>
+          <p className="text-3xl font-bold" style={{ color: "#CAFF4D" }}>
+            {volume.toLocaleString()}
+          </p>
+          <p className="text-xs mt-1" style={{ color: "#8E8E93" }}>kg（総ボリューム）</p>
+        </div>
+      </div>
 
-      {/* Exercise summary */}
+      {/* 実施内容 */}
       <div className="space-y-2">
-        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 px-1">
-          実施内容
-        </h2>
+        <h2 className="text-sm font-medium px-1" style={{ color: "#8E8E93" }}>実施内容</h2>
         {exercises.map((ex) => {
-          const exSets = (setsMap[ex.id] ?? []).filter(
-            (s) => s.status === "completed"
-          );
+          const exSets = (setsMap[ex.id] ?? []).filter((s) => s.status === "completed");
           return (
-            <Card key={ex.id} className="py-3">
+            <div
+              key={ex.id}
+              className="rounded-xl px-4 py-3"
+              style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
               <div className="flex items-center justify-between">
-                <p className="font-medium text-gray-900 dark:text-gray-100">
-                  {ex.exerciseName}
-                </p>
+                <p className="font-medium text-white">{ex.exerciseName}</p>
                 {ex.skipped && (
-                  <span className="text-xs text-gray-400">スキップ</span>
+                  <span className="text-xs" style={{ color: "#8E8E93" }}>スキップ</span>
                 )}
               </div>
               {!ex.skipped && exSets.length > 0 && (
                 <div className="mt-1 space-y-0.5">
                   {exSets.map((s) => (
-                    <p key={s.id} className="text-xs text-gray-500 dark:text-gray-400">
+                    <p key={s.id} className="text-xs" style={{ color: "#8E8E93" }}>
                       {s.setNumber}セット{s.side ? ` (${s.side})` : ""}: {s.weight}kg × {s.reps}回
                     </p>
                   ))}
                 </div>
               )}
-            </Card>
+            </div>
           );
         })}
       </div>
 
-      {/* Actions */}
+      {/* アクション */}
       <div className="space-y-2 pb-safe-bottom">
-        {!saved ? (
-          <Button
-            variant="primary"
-            size="lg"
-            fullWidth
-            onClick={handleSave}
-            loading={saving}
+        <Button
+          variant="outline"
+          size="lg"
+          fullWidth
+          onClick={handleCopyText}
+        >
+          📋 ChatGPT用テキストをコピー
+        </Button>
+        <Button
+          variant="secondary"
+          size="lg"
+          fullWidth
+          onClick={() => router.push("/home")}
+        >
+          ホームに戻る
+        </Button>
+        <div className="text-center pt-1">
+          <button
+            onClick={() => router.push("/today")}
+            className="text-sm"
+            style={{ color: "#8E8E93" }}
           >
-            完了を保存する
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="lg"
-            fullWidth
-            onClick={handleCopyText}
-          >
-            📋 ChatGPT用テキストをコピー
-          </Button>
-        )}
-
-        {saved && (
-          <Button
-            variant="secondary"
-            size="lg"
-            fullWidth
-            onClick={() => router.push("/home")}
-          >
-            ホームに戻る
-          </Button>
-        )}
+            今日のメニューに戻る
+          </button>
+        </div>
       </div>
     </div>
   );
