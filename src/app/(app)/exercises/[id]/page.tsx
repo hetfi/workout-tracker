@@ -18,7 +18,7 @@ export default async function ExerciseEditPage({
 
   const { data: exercise } = await supabase
     .from("exercises")
-    .select("id, name, muscle_category, is_one_arm")
+    .select("id, name, muscle_category, is_one_arm, default_rest_seconds")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -50,6 +50,7 @@ export default async function ExerciseEditPage({
         exerciseId={id}
         currentCategory={currentCategory}
         isOneArm={exercise.is_one_arm ?? false}
+        defaultRestSeconds={exercise.default_rest_seconds ?? 90}
       />
     </div>
   );

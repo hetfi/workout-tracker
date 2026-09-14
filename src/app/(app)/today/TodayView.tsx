@@ -487,10 +487,10 @@ export function TodayView({
     if (pendingCount > 0 || allSets.length === 0) {
       const msg =
         allSets.length === 0
-          ? "完了したセットがありません。今日のメニューに戻りますか？"
+          ? "完了したセットがありません。ホームに戻りますか？"
           : completedCount === 0
-          ? "完了したセットがありません。今日のメニューに戻りますか？"
-          : `まだ${pendingCount}セット完了していません。今日のメニューに戻りますか？`;
+          ? "完了したセットがありません。ホームに戻りますか？"
+          : `まだ${pendingCount}セット完了していません。ホームに戻りますか？`;
       if (!confirm(msg)) return;
       router.push("/home");
       return;

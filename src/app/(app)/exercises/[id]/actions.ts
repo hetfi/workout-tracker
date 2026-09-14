@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 export async function saveExerciseMeta(
   exerciseId: string,
   muscleCategory: string,
-  isOneArm: boolean
+  isOneArm: boolean,
+  defaultRestSeconds: number
 ): Promise<void> {
   const supabase = await createClient();
   const {
@@ -19,6 +20,7 @@ export async function saveExerciseMeta(
     .update({
       muscle_category: muscleCategory,
       is_one_arm: isOneArm,
+      default_rest_seconds: defaultRestSeconds,
     })
     .eq("id", exerciseId)
     .eq("user_id", user.id);

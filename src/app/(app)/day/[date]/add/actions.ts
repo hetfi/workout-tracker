@@ -35,6 +35,28 @@ export async function getPastExercises(): Promise<
   }));
 }
 
+/** 種目名 → default_rest_seconds のマップを取得する */
+async function getRestSecondsMap(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  exerciseNames: string[]
+): Promise<Record<string, number>> {
+  if (exerciseNames.length === 0) return {};
+  const { data } = await supabase
+    .from("exercises")
+    .select("name, default_rest_seconds")
+    .eq("user_id", userId)
+    .in("name", exerciseNames)
+    .is("deleted_at", null);
+  const map: Record<string, number> = {};
+  for (const row of data ?? []) {
+    if (row.default_rest_seconds != null) {
+      map[row.name as string] = row.default_rest_seconds as number;
+    }
+  }
+  return map;
+}
+
 /** 新規セッションを作成して種目を追加する（今まで通りの動作） */
 export async function addManualSession(
   date: string,
@@ -48,6 +70,9 @@ export async function addManualSession(
   if (!user) redirect("/login");
 
   if (exercises.length === 0) throw new Error("種目を1つ以上追加してください");
+
+  // 種目マスターから default_rest_seconds を取得
+  const restMap = await getRestSecondsMap(supabase, user.id, exercises.map((e) => e.name));
 
   // Derive title from first exercise
   const title =
@@ -80,7 +105,7 @@ export async function addManualSession(
     sets: e.sets,
     reps_min: e.repsMin,
     reps_max: e.repsMax,
-    rest_seconds: 90,
+    rest_seconds: restMap[e.name] ?? 90,
     sort_order: i,
   }));
   await supabase.from("workout_plan_exercises").insert(planExercises);
@@ -107,7 +132,7 @@ export async function addManualSession(
     planned_sets: e.sets,
     planned_reps_min: e.repsMin,
     planned_reps_max: e.repsMax,
-    rest_seconds: 90,
+    rest_seconds: restMap[e.name] ?? 90,
     sort_order: i,
     is_one_arm: e.isOneArm ?? false,
   }));
@@ -173,6 +198,9 @@ export async function addExercisesToSession(
 
   const maxSortOrder = existing?.[0]?.sort_order ?? -1;
 
+  // 種目マスターから default_rest_seconds を取得
+  const restMap = await getRestSecondsMap(supabase, user.id, exercises.map((e) => e.name));
+
   const sessionExercises = exercises.map((e, i) => ({
     user_id: user.id,
     session_id: sessionId,
@@ -180,7 +208,7 @@ export async function addExercisesToSession(
     planned_sets: e.sets,
     planned_reps_min: e.repsMin,
     planned_reps_max: e.repsMax,
-    rest_seconds: 90,
+    rest_seconds: restMap[e.name] ?? 90,
     sort_order: maxSortOrder + 1 + i,
     is_one_arm: e.isOneArm ?? false,
   }));
