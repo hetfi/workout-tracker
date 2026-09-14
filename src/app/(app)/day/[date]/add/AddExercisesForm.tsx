@@ -18,9 +18,10 @@ import {
 
 interface AddExercisesFormProps {
   date: string;
-  sessionId?: string; // 既存セッションに追加する場合
-  backTo?: string;    // 「戻る」ボタンの遷移先
-  saveTo?: string;    // 種目追加完了後の遷移先
+  sessionId?: string;   // 既存セッションに追加する場合
+  backTo?: string;      // 「戻る」ボタンの遷移先
+  saveTo?: string;      // 種目追加完了後の遷移先
+  submitLabel?: string; // 送信ボタンのラベル
 }
 
 interface SelectedExercise extends ManualExercise {
@@ -43,7 +44,7 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-export function AddExercisesForm({ date, sessionId, backTo, saveTo }: AddExercisesFormProps) {
+export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel }: AddExercisesFormProps) {
   const [pastExercises, setPastExercises] = useState<
     { id: string; name: string; muscle_category: string | null; is_one_arm: boolean }[]
   >([]);
@@ -265,7 +266,7 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo }: AddExercis
           loading={isPending}
           className="w-full"
         >
-          {sessionId ? "種目を追加する" : "トレーニングを開始"}
+          {submitLabel ?? (sessionId ? "種目を追加する" : "トレーニングを開始")}
         </Button>
       </div>
     </div>

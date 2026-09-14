@@ -77,7 +77,7 @@ export default async function DayPage({ params }: PageProps) {
             この日のトレーニング記録はありません
           </p>
           <Link
-            href={`/day/${date}/add?backTo=/day/${date}`}
+            href={`/day/${date}/add`}
             className="block text-center text-sm py-3 rounded-xl font-medium"
             style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
           >
@@ -335,8 +335,8 @@ export default async function DayPage({ params }: PageProps) {
           sessionList.find((s) => s.status === "not_started") ??
           sessionList[sessionList.length - 1];
         const addHref = activeSession
-          ? `/day/${date}/add?sessionId=${activeSession.id}&backTo=/day/${date}`
-          : `/day/${date}/add?backTo=/day/${date}`;
+          ? `/day/${date}/add?sessionId=${activeSession.id}`
+          : `/day/${date}/add`;
         return (
           <Link
             href={addHref}
