@@ -100,11 +100,6 @@ export function ExerciseCategoryGrid({ exercises }: Props) {
               <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 flex items-center justify-between">
                 <div>
                   <p className="font-medium text-white">{ex.name}</p>
-                  {ex.is_one_arm && (
-                    <span className="text-xs px-2 py-0.5 rounded-full border border-[#CAFF4D]/40 text-[#CAFF4D] mt-1 inline-block">
-                      片側
-                    </span>
-                  )}
                 </div>
                 <span className="text-[#8E8E93] text-lg ml-2">›</span>
               </div>
