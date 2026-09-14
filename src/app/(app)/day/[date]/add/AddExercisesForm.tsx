@@ -20,6 +20,7 @@ import {
 interface AddExercisesFormProps {
   date: string;
   sessionId?: string; // 既存セッションに追加する場合
+  backTo?: string;    // 完了後のリダイレクト先
 }
 
 interface SelectedExercise extends ManualExercise {
@@ -42,7 +43,7 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-export function AddExercisesForm({ date, sessionId }: AddExercisesFormProps) {
+export function AddExercisesForm({ date, sessionId, backTo }: AddExercisesFormProps) {
   const [pastExercises, setPastExercises] = useState<
     { id: string; name: string; muscle_category: string | null; is_one_arm: boolean }[]
   >([]);
@@ -106,10 +107,10 @@ export function AddExercisesForm({ date, sessionId }: AddExercisesFormProps) {
     startTransition(async () => {
       try {
         if (sessionId) {
-          await addExercisesToSession(sessionId, selected);
+          await addExercisesToSession(sessionId, selected, backTo);
         } else {
           // アクティブセッションがあれば自動検出して追加、なければ新規作成
-          await addExercisesForDate(date, selected);
+          await addExercisesForDate(date, selected, backTo);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "エラーが発生しました");

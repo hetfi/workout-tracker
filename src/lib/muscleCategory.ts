@@ -37,6 +37,9 @@ export function classifyExercise(name: string): MuscleCategory {
   for (const { category, pattern } of PATTERNS) {
     if (pattern.test(name)) return category;
   }
+  // "プレス" を含むがどのカテゴリにも当たらない種目は胸と推定
+  if (/プレス/.test(name)) return 'chest';
+  // それ以外は背中をデフォルトとするが、マスターデータがあればそちらが優先される
   return 'back';
 }
 

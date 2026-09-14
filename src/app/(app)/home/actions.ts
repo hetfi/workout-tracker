@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { classifyExercise, getSessionCategories, MuscleCategory } from "@/lib/muscleCategory";
+import { classifyExercise, CATEGORY_ORDER, MuscleCategory } from "@/lib/muscleCategory";
 
 export async function startTrainingFromPlan(planId: string) {
   const supabase = await createClient();
@@ -124,25 +124,46 @@ export async function getCalendarData(
     (completedSets ?? []).map((s) => s.session_exercise_id)
   );
 
+  // exercises マスターを取得してカテゴリを正確に解決する（day view と同じ方式）
+  const allExerciseNames = [
+    ...new Set((exercises ?? []).map((e) => e.exercise_name)),
+  ];
+  const { data: masterExercises } =
+    allExerciseNames.length > 0
+      ? await supabase
+          .from("exercises")
+          .select("name, muscle_category")
+          .eq("user_id", user.id)
+          .in("name", allExerciseNames)
+      : { data: [] };
+
+  const categoryMap: Record<string, MuscleCategory> = {};
+  for (const ex of masterExercises ?? []) {
+    if (ex.muscle_category)
+      categoryMap[ex.name] = ex.muscle_category as MuscleCategory;
+  }
+  const getCategory = (name: string): MuscleCategory =>
+    categoryMap[name] ?? classifyExercise(name);
+
   // Map session_id -> date
   const sessionDateMap: Record<string, string> = {};
   for (const s of sessions) {
     sessionDateMap[s.id] = s.date;
   }
 
-  // Group exercise names by date（完了セットがある種目のみ）
-  const dateExercises: Record<string, string[]> = {};
+  // Group categories by date（完了セットがある種目のみ）
+  const dateCategories: Record<string, Set<MuscleCategory>> = {};
   for (const ex of exercises) {
     if (!completedExerciseIds.has(ex.id)) continue; // 0セット除外
     const date = sessionDateMap[ex.session_id];
     if (!date) continue;
-    if (!dateExercises[date]) dateExercises[date] = [];
-    dateExercises[date].push(ex.exercise_name);
+    if (!dateCategories[date]) dateCategories[date] = new Set();
+    dateCategories[date].add(getCategory(ex.exercise_name));
   }
 
   const result: Record<string, MuscleCategory[]> = {};
-  for (const [date, names] of Object.entries(dateExercises)) {
-    result[date] = getSessionCategories(names);
+  for (const [date, catSet] of Object.entries(dateCategories)) {
+    result[date] = CATEGORY_ORDER.filter((c) => catSet.has(c));
   }
 
   return result;

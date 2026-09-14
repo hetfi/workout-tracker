@@ -539,12 +539,14 @@ export default function SessionPage({
     const totalCount = allSets.length;
     const pendingCount = totalCount - completedCount;
 
-    // 未完了セットが残っている → 完了扱いにしない
-    if (pendingCount > 0) {
+    // セットがゼロ（プリセット未生成など）か未完了あり → 完了扱いにしない
+    if (pendingCount > 0 || totalCount === 0) {
       const msg =
-        completedCount === 0
-          ? "完了したセットがありません。今日のメニューに戻りますか？"
-          : `まだ${pendingCount}セット完了していません。今日のメニューに戻りますか？`;
+        totalCount === 0
+          ? "完了したセットがありません。ホームに戻りますか？"
+          : completedCount === 0
+          ? "完了したセットがありません。ホームに戻りますか？"
+          : `まだ${pendingCount}セット完了していません。ホームに戻りますか？`;
       if (!confirm(msg)) return;
       // in_progress のままホームへ（ホームで「トレーニングを再開」が表示される）
       router.push("/home");

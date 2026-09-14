@@ -38,7 +38,8 @@ export async function getPastExercises(): Promise<
 /** 新規セッションを作成して種目を追加する（今まで通りの動作） */
 export async function addManualSession(
   date: string,
-  exercises: ManualExercise[]
+  exercises: ManualExercise[],
+  backTo?: string
 ): Promise<void> {
   const supabase = await createClient();
   const {
@@ -112,7 +113,7 @@ export async function addManualSession(
   }));
   await supabase.from("workout_session_exercises").insert(sessionExercises);
 
-  redirect(`/session/${session.id}`);
+  redirect(backTo ?? `/session/${session.id}`);
 }
 
 /**
@@ -121,7 +122,8 @@ export async function addManualSession(
  */
 export async function addExercisesForDate(
   date: string,
-  exercises: ManualExercise[]
+  exercises: ManualExercise[],
+  backTo?: string
 ): Promise<void> {
   const supabase = await createClient();
   const {
@@ -140,17 +142,18 @@ export async function addExercisesForDate(
 
   if (activeSessions && activeSessions.length > 0) {
     // アクティブセッションへ追加
-    return addExercisesToSession(activeSessions[0].id, exercises);
+    return addExercisesToSession(activeSessions[0].id, exercises, backTo);
   }
 
   // なければ新規作成
-  return addManualSession(date, exercises);
+  return addManualSession(date, exercises, backTo);
 }
 
 /** 既存セッションに種目を追加する */
 export async function addExercisesToSession(
   sessionId: string,
-  exercises: ManualExercise[]
+  exercises: ManualExercise[],
+  backTo?: string
 ): Promise<void> {
   const supabase = await createClient();
   const {
@@ -198,5 +201,5 @@ export async function addExercisesToSession(
       .eq("id", sessionId);
   }
 
-  redirect(`/session/${sessionId}`);
+  redirect(backTo ?? `/session/${sessionId}`);
 }

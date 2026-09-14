@@ -69,28 +69,31 @@ export function BottomSheet({
         ref={sheetRef}
         className={cn(
           "relative z-10",
-          "bg-white dark:bg-gray-900",
           "rounded-t-3xl",
           "pb-safe-bottom",
           "transition-transform duration-300 ease-out",
           open ? "translate-y-0" : "translate-y-full",
           "max-h-[90vh] flex flex-col"
         )}
+        style={{ backgroundColor: "#2C2C2E" }}
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className="h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600" />
+          <div className="h-1 w-10 rounded-full" style={{ backgroundColor: "#48484A" }} />
         </div>
 
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between px-5 pb-3 border-b border-gray-100 dark:border-gray-800">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <div
+            className="flex items-center justify-between px-5 pb-3"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <h2 className="text-lg font-semibold text-white">
               {title}
             </h2>
             <button
               onClick={onClose}
-              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+              className="p-2 rounded-full text-[#8E8E93] hover:text-white transition-colors"
               aria-label="閉じる"
             >
               <svg

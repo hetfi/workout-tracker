@@ -3,19 +3,22 @@ import { AddExercisesForm } from "./AddExercisesForm";
 
 interface PageProps {
   params: Promise<{ date: string }>;
-  searchParams: Promise<{ sessionId?: string }>;
+  searchParams: Promise<{ sessionId?: string; backTo?: string }>;
 }
 
 export default async function AddExercisesPage({ params, searchParams }: PageProps) {
   const { date } = await params;
-  const { sessionId } = await searchParams;
+  const { sessionId, backTo } = await searchParams;
+
+  // backTo がある場合はそこに戻る、なければ従来のリンク
+  const backHref = backTo ?? (sessionId ? `/session/${sessionId}` : `/day/${date}`);
 
   return (
     <div className="py-6 space-y-5">
       {/* Back button */}
       <div className="flex items-center gap-3">
         <Link
-          href={sessionId ? `/session/${sessionId}` : `/day/${date}`}
+          href={backHref}
           className="text-[#CAFF4D] text-sm font-medium"
         >
           ← 戻る
@@ -32,7 +35,7 @@ export default async function AddExercisesPage({ params, searchParams }: PagePro
         </p>
       </div>
 
-      <AddExercisesForm date={date} sessionId={sessionId} />
+      <AddExercisesForm date={date} sessionId={sessionId} backTo={backTo} />
     </div>
   );
 }
