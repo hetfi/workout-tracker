@@ -24,6 +24,9 @@ import {
 import { buildExercisePreset } from "@/lib/preset";
 import {
   classifyExercise,
+  CATEGORY_ORDER,
+  CATEGORY_COLORS,
+  CATEGORY_LABELS,
   type MuscleCategory,
 } from "@/lib/muscleCategory";
 import type {
@@ -449,32 +452,57 @@ export function TodayView({
     );
   }
 
-  const totalSets = Object.values(setsMap).flat().length;
-  const completedSets = Object.values(setsMap)
-    .flat()
-    .filter((s) => s.status === "completed").length;
+  // 部位ごとの進捗を集計
+  const categoryProgress = (() => {
+    const result: Partial<Record<MuscleCategory, { completed: number; total: number }>> = {};
+    for (const ex of exercises) {
+      const cat = categoriesMap[ex.id];
+      if (!cat) continue;
+      if (!result[cat]) result[cat] = { completed: 0, total: 0 };
+      const sets = setsMap[ex.id] ?? [];
+      result[cat]!.completed += sets.filter((s) => s.status === "completed").length;
+      result[cat]!.total += sets.length;
+    }
+    return result;
+  })();
 
   return (
     <div className="py-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between pt-12">
-        <div>
-          <h1 className="text-xl font-bold text-white">今日のメニュー</h1>
-          <p className="text-xs text-[#8E8E93] mt-0.5">
-            {completedSets}/{totalSets} セット完了
-          </p>
-        </div>
+        <h1 className="text-xl font-bold text-white">今日のメニュー</h1>
         <SaveStatusIndicator status={saveStatus} />
       </div>
 
-      {/* Progress bar */}
-      <div className="w-full h-1.5 bg-white/[0.1] rounded-full overflow-hidden">
-        <div
-          className="h-full bg-[#CAFF4D] rounded-full transition-all duration-300"
-          style={{
-            width: totalSets > 0 ? `${(completedSets / totalSets) * 100}%` : "0%",
-          }}
-        />
+      {/* 部位別プログレスバー */}
+      <div className="space-y-2">
+        {CATEGORY_ORDER.filter((cat) => categoryProgress[cat]).map((cat) => {
+          const { completed, total } = categoryProgress[cat]!;
+          const color = CATEGORY_COLORS[cat];
+          const pct = total > 0 ? (completed / total) * 100 : 0;
+          return (
+            <div key={cat} className="flex items-center gap-3">
+              {/* 部位ラベル */}
+              <span
+                className="text-xs font-semibold w-8 shrink-0"
+                style={{ color }}
+              >
+                {CATEGORY_LABELS[cat]}
+              </span>
+              {/* バー */}
+              <div className="flex-1 h-1.5 bg-white/[0.1] rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${pct}%`, backgroundColor: color }}
+                />
+              </div>
+              {/* セット数 */}
+              <span className="text-xs text-[#8E8E93] w-10 text-right shrink-0">
+                {completed}/{total}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Exercises */}
