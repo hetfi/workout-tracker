@@ -59,6 +59,10 @@ function newClientId(): string {
   return crypto.randomUUID();
 }
 
+function getTodayJST(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 function formatJpDate(dateStr: string): string {
   const [y, m, d] = dateStr.split("-");
   const days = ["日", "月", "火", "水", "木", "金", "土"];
@@ -232,6 +236,9 @@ export default function SessionPage({
 
         setSetsMap(grouped);
 
+        // 過去日セッションはタイマー不要
+        const isPastSessionLoaded = sessionData.date < getTodayJST();
+
         // IndexedDB ドラフトをマージ
         if (draft) {
           for (const draftSet of draft.sets) {
@@ -269,18 +276,20 @@ export default function SessionPage({
           setSetsMap({ ...grouped });
         }
 
-        // タイマーを復元
-        const timerToUse =
-          dbTimer ?? localTimer
-            ? fromRestTimer(dbTimer!) ?? localTimer
-            : null;
-        if (timerToUse) {
-          const state = dbTimer
-            ? fromRestTimer(dbTimer)
-            : (timerToUse as TimerState);
-          setTimerState(state);
-          const timerEx = exData.find((e) => e.id === state?.sessionExerciseId);
-          if (timerEx) setActiveExerciseName(timerEx.exerciseName);
+        // タイマーを復元（過去日セッションはタイマー不要なのでスキップ）
+        if (!isPastSessionLoaded) {
+          const timerToUse =
+            dbTimer ?? localTimer
+              ? fromRestTimer(dbTimer!) ?? localTimer
+              : null;
+          if (timerToUse) {
+            const state = dbTimer
+              ? fromRestTimer(dbTimer)
+              : (timerToUse as TimerState);
+            setTimerState(state);
+            const timerEx = exData.find((e) => e.id === state?.sessionExerciseId);
+            if (timerEx) setActiveExerciseName(timerEx.exerciseName);
+          }
         }
 
         // セッションを in_progress に更新
@@ -376,7 +385,7 @@ export default function SessionPage({
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2000);
 
-        // Start interval timer if there's a next set
+        // Start interval timer if there's a next set（過去日セッションはタイマー不要）
         const ex = exercises.find((e) => e.id === exerciseId);
         if (!ex) return;
 
@@ -386,7 +395,8 @@ export default function SessionPage({
             s.status === "pending" && s.setNumber > completedSet.setNumber
         );
 
-        if (pendingSets.length > 0 && session?.status === "in_progress" && getIntervalEnabled()) {
+        const isToday = session?.date === getTodayJST();
+        if (isToday && pendingSets.length > 0 && session?.status === "in_progress" && getIntervalEnabled()) {
           const nextSet = pendingSets[0];
           const state = createTimerState({
             sessionId,
@@ -653,8 +663,21 @@ export default function SessionPage({
       return;
     }
 
-    // 全セット完了 → /complete へ
-    router.push(`/session/${sessionId}/complete`);
+    // 全セット完了 → 今日はグッジョブ画面、過去日はサマリページへ直接
+    if (session?.date === getTodayJST()) {
+      router.push(`/session/${sessionId}/complete`);
+    } else {
+      // 過去日: グッジョブ画面なし。セッションを完了状態にしてサマリへ
+      try {
+        await updateSession(sessionId, {
+          status: "completed",
+          completedAt: new Date().toISOString(),
+        });
+      } catch {
+        /* non-critical */
+      }
+      router.push(`/day/${session?.date}`);
+    }
   };
 
   if (loading) {
@@ -688,10 +711,13 @@ export default function SessionPage({
     categoryProgress[cat].total += total;
   }
 
+  // 過去日セッションはタイマー表示・起動しない
+  const isPastSession = session?.date ? session.date < getTodayJST() : false;
+
   return (
     <div className="py-6 space-y-4">
-      {/* Timer bar */}
-      {timerState && timerState.status === "running" && (
+      {/* Timer bar — 過去日セッションでは表示しない */}
+      {!isPastSession && timerState && timerState.status === "running" && (
         <IntervalTimer
           timer={timerState}
           exerciseName={activeExerciseName}

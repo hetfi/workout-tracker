@@ -593,20 +593,24 @@ export function TodayView({
       return;
     }
 
-    // 全セット完了 → 全セッションを completed に
-    try {
-      await Promise.all(
-        sessionIds.map((sid) =>
-          updateSession(sid, {
-            status: "completed",
-            completedAt: new Date().toISOString(),
-          })
-        )
-      );
-    } catch {
-      /* non-critical */
+    // 全セット完了 → グッジョブ画面へ（完了保存は /complete 画面で行う）
+    // firstActiveSessionId 以外のセッションは先に completed に更新しておく
+    const otherIds = sessionIds.filter((id) => id !== firstActiveSessionId);
+    if (otherIds.length > 0) {
+      try {
+        await Promise.all(
+          otherIds.map((sid) =>
+            updateSession(sid, {
+              status: "completed",
+              completedAt: new Date().toISOString(),
+            })
+          )
+        );
+      } catch {
+        /* non-critical */
+      }
     }
-    router.push("/home");
+    router.push(`/session/${firstActiveSessionId}/complete`);
   };
 
   if (loading) {

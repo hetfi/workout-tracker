@@ -328,25 +328,6 @@ export default async function DayPage({ params }: PageProps) {
         );
       })()}
 
-      {/* 過去日の種目追加 */}
-      {(() => {
-        const activeSession =
-          sessionList.find((s) => s.status === "in_progress") ??
-          sessionList.find((s) => s.status === "not_started") ??
-          sessionList[sessionList.length - 1];
-        const addHref = activeSession
-          ? `/day/${date}/add?sessionId=${activeSession.id}`
-          : `/day/${date}/add`;
-        return (
-          <Link
-            href={addHref}
-            className="block text-center text-sm py-3 rounded-xl font-medium"
-            style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
-          >
-            ＋ 種目を追加する
-          </Link>
-        );
-      })()}
     </div>
   );
 }

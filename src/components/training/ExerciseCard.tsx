@@ -192,7 +192,8 @@ export function ExerciseCard({
   // One-arm: ユーザーがセット追加した回数（DBの stale データに左右されない pair 数管理）
   const [addedPairs, setAddedPairs] = useState(0);
 
-  // Delete a pending one-arm slot that has no DB record yet
+  // Delete a pending one-arm slot that has no DB record yet.
+  // Hides the slot in the UI and decrements planned_sets in DB when a full pair (L+R) is removed.
   // Root cause fix: previously used sessionExercise.plannedSets (static prop) and
   // deletedOneArmSlots.size (stale closure), causing wrong planned_sets values on
   // multiple deletions. Now computed inside the setState callback for correctness.
@@ -223,6 +224,20 @@ export function ExerciseCard({
       });
     },
     [sessionExercise.id, sessionExercise.plannedSets]
+  );
+
+  // Hide a completed one-arm slot immediately after onDeleteSet removes it from setsMap.
+  // Without this, the slot reappears as "pending" and requires a second tap to delete.
+  // No DB planned_sets update needed here — onDeleteSet already handles workout_sets deletion.
+  const handleHideOneArmSlot = useCallback(
+    (slotNumber: number, side: "L" | "R") => {
+      const key = `${slotNumber}-${side}`;
+      setDeletedOneArmSlots((prev) => {
+        if (prev.has(key)) return prev;
+        return new Set([...prev, key]);
+      });
+    },
+    []
   );
 
   // Toggle one-arm mode (persists to DB)
@@ -379,12 +394,17 @@ export function ExerciseCard({
   let totalCount: number;
 
   if (isOneArmLocal) {
-    // oneArmPairCount の範囲内の L/R セットだけ集計（stale DB データを除外）
-    const visibleSideSets = sets.filter(
-      (s) => (s.side === "L" || s.side === "R") && s.setNumber <= oneArmPairCount
-    );
-    completedCount = visibleSideSets.filter((s) => s.status === "completed").length;
-    totalCount = visibleSideSets.length - deletedOneArmSlots.size;
+    // L と R をそれぞれ独立した1セットとして数える（右2・左2 = 合計4セット）。
+    // totalCount = ペア数 × 2 − 個別削除済み数（削除された完了セット含む）。
+    // completedCount = 削除されていない完了済みの L/R セット数。
+    completedCount = sets.filter(
+      (s) =>
+        (s.side === "L" || s.side === "R") &&
+        s.setNumber <= oneArmPairCount &&
+        s.status === "completed" &&
+        !deletedOneArmSlots.has(`${s.setNumber}-${s.side}`)
+    ).length;
+    totalCount = Math.max(0, oneArmPairCount * 2 - deletedOneArmSlots.size);
   } else {
     completedCount = sets.filter((s) => s.status === "completed").length;
     totalCount = sets.length;
@@ -571,7 +591,12 @@ export function ExerciseCard({
                   onDelete={
                     onDeleteSet
                       ? lSet
-                        ? () => onDeleteSet(lSet.clientId)
+                        ? () => {
+                            // 完了済みセット: DBから削除 + UIスロットを即座に非表示
+                            // （非表示にしないと pending として再表示され2回タップ必要になる）
+                            onDeleteSet(lSet.clientId);
+                            handleHideOneArmSlot(n, "L");
+                          }
                         : () => handleDeletePendingOneArmSlot(n, "L")
                       : undefined
                   }
@@ -592,7 +617,11 @@ export function ExerciseCard({
                   onDelete={
                     onDeleteSet
                       ? rSet
-                        ? () => onDeleteSet(rSet.clientId)
+                        ? () => {
+                            // 完了済みセット: DBから削除 + UIスロットを即座に非表示
+                            onDeleteSet(rSet.clientId);
+                            handleHideOneArmSlot(n, "R");
+                          }
                         : () => handleDeletePendingOneArmSlot(n, "R")
                       : undefined
                   }
