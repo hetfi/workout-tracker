@@ -291,15 +291,15 @@ export function ExerciseCard({
               {CATEGORY_LABELS[muscleCategory]}
             </span>
           )}
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-lg text-white truncate">
+          <div className="flex items-start gap-2 flex-wrap">
+            <h3 className="font-semibold text-lg text-white break-words min-w-0">
               {sessionExercise.exerciseName}
             </h3>
             {/* One-arm toggle badge */}
             <button
               onClick={handleToggleOneArm}
               className={cn(
-                "shrink-0 text-xs px-2 py-0.5 rounded-full font-medium transition-colors border",
+                "shrink-0 text-xs px-2 py-0.5 rounded-full font-medium transition-colors border mt-0.5",
                 isOneArmLocal
                   ? "bg-[#CAFF4D]/20 text-[#CAFF4D] border-[#CAFF4D]/40"
                   : "bg-white/[0.06] text-[#8E8E93] border-white/[0.08]"
@@ -308,22 +308,18 @@ export function ExerciseCard({
               {isOneArmLocal ? "片手" : "両手"}
             </button>
           </div>
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-            <span className="text-xs text-[#8E8E93]">
-              目標: {sessionExercise.plannedSets}セット ×{" "}
-              {formatRepsTarget(sessionExercise.plannedRepsTarget)}回
-            </span>
-            <span className="text-xs text-[#8E8E93]">
-              インターバル: {formatRestSeconds(sessionExercise.restSeconds)}
-            </span>
-          </div>
+          <p className="text-xs text-[#8E8E93] mt-0.5">
+            {sessionExercise.plannedSets}セット×{formatRepsTarget(sessionExercise.plannedRepsTarget)}回
+            {" · "}
+            間隔{formatRestSeconds(sessionExercise.restSeconds)}
+          </p>
           {sessionExercise.notes && (
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+            <p className="text-xs mt-0.5" style={{ color: "#64B5F6" }}>
               ✦ {sessionExercise.notes}
             </p>
           )}
           {previousRecord && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+            <p className="text-xs mt-0.5" style={{ color: "#8E8E93" }}>
               {previousRecord}
             </p>
           )}

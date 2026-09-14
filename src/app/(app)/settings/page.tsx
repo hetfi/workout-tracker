@@ -24,11 +24,11 @@ function ToggleRow({
   return (
     <div className="flex items-center justify-between gap-3 py-1">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+        <p className="text-sm font-medium" style={{ color: "#FFFFFF" }}>
           {label}
         </p>
         {description && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          <p className="text-xs mt-0.5" style={{ color: "#8E8E93" }}>
             {description}
           </p>
         )}
@@ -37,14 +37,16 @@ function ToggleRow({
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative w-12 h-7 rounded-full transition-colors ${
-          checked ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
-        }`}
+        className="relative w-12 h-7 rounded-full transition-colors shrink-0"
+        style={{ backgroundColor: checked ? "#CAFF4D" : "#3A3A3C", transition: "background-color 0.15s" }}
       >
         <span
-          className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-            checked ? "translate-x-5" : "translate-x-0"
-          }`}
+          className="absolute top-1 w-5 h-5 rounded-full shadow"
+          style={{
+            backgroundColor: checked ? "#0D0D0F" : "#8E8E93",
+            left: checked ? "24px" : "4px",
+            transition: "left 0.15s ease-in-out, background-color 0.15s",
+          }}
         />
       </button>
     </div>
@@ -107,16 +109,19 @@ export default function SettingsPage() {
 
   return (
     <div className="py-6 space-y-5">
-      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+      <h1 className="text-xl font-bold" style={{ color: "#FFFFFF" }}>
         設定
       </h1>
 
       {/* Interval timer settings */}
       <Card className="space-y-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+        <h2 className="text-sm font-semibold" style={{ color: "#FFFFFF" }}>
           インターバルタイマー
         </h2>
-        <div className="space-y-3 divide-y divide-gray-100 dark:divide-gray-800">
+        <div
+          className="space-y-3 divide-y"
+          style={{ borderColor: "rgba(255,255,255,0.08)" }}
+        >
           <ToggleRow
             label="インターバルタイマーを使用する"
             description="セット完了後に自動でインターバルカウントダウンを開始する"
@@ -178,7 +183,7 @@ export default function SettingsPage() {
 
       {/* Account */}
       <Card>
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+        <h2 className="text-sm font-semibold mb-3" style={{ color: "#FFFFFF" }}>
           アカウント
         </h2>
         <Button
@@ -191,7 +196,7 @@ export default function SettingsPage() {
         </Button>
       </Card>
 
-      <p className="text-center text-xs text-gray-400 pb-4">
+      <p className="text-center text-xs pb-4" style={{ color: "#8E8E93" }}>
         筋トレ記録 Version 1.0
       </p>
     </div>

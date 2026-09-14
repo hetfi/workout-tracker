@@ -66,15 +66,24 @@ function ImportPageInner() {
     <div className="py-6 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        {step === "preview" && (
+        {step === "input" ? (
+          <button
+            onClick={() => router.back()}
+            className="text-sm font-medium"
+            style={{ color: "#CAFF4D" }}
+          >
+            ← 戻る
+          </button>
+        ) : (
           <button
             onClick={() => setStep("input")}
-            className="text-blue-600 dark:text-blue-400 text-sm font-medium"
+            className="text-sm font-medium"
+            style={{ color: "#CAFF4D" }}
           >
             ← 戻る
           </button>
         )}
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+        <h1 className="text-xl font-bold text-white">
           {step === "input"
             ? dateParam
               ? `${dateParam.slice(5, 7)}月${parseInt(dateParam.slice(8, 10))}日のメニューを追加`

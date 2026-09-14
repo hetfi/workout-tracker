@@ -347,7 +347,7 @@ export default async function HomePage() {
       {/* Date header */}
       <div>
         <p className="text-xs text-[#8E8E93]">{formatJapaneseDate(todayStr)}</p>
-        <h1 className="text-2xl font-bold text-white">今日のトレーニング</h1>
+        <h1 className="text-xl font-bold text-white">今日のトレーニング</h1>
       </div>
 
       {/* Streak */}
@@ -376,8 +376,8 @@ export default async function HomePage() {
           <Link
             href={
               firstActiveSessionId
-                ? `/day/${todayStr}/add?sessionId=${firstActiveSessionId}&backTo=/today`
-                : `/day/${todayStr}/add`
+                ? `/day/${todayStr}/add?sessionId=${firstActiveSessionId}&backTo=/home`
+                : `/day/${todayStr}/add?backTo=/home`
             }
             className="block text-center text-sm py-3 rounded-xl font-medium"
             style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}

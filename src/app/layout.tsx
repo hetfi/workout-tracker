@@ -40,9 +40,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja" className={`${geist.variable} h-full`}>
-      <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-      </head>
+      <head />
       <body className="h-full min-h-screen bg-[#1C1C1E] text-white antialiased">
         <ToastProvider>{children}</ToastProvider>
         <script

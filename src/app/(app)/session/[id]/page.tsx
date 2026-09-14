@@ -624,8 +624,19 @@ export default function SessionPage({
         />
       )}
 
+      {/* Back */}
+      <div>
+        <button
+          onClick={() => router.back()}
+          className="text-sm font-medium"
+          style={{ color: "#CAFF4D" }}
+        >
+          ← 戻る
+        </button>
+      </div>
+
       {/* Header */}
-      <div className="flex items-center justify-between pt-12">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-white truncate">
             {session.title}
