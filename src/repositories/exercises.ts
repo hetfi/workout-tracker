@@ -197,6 +197,25 @@ export async function deleteAlias(aliasId: string): Promise<void> {
 }
 
 /**
+ * 種目名 → muscle_category のマップを返す（マスターデータ参照用）。
+ * deleted_at が null の種目のみ対象。
+ */
+export async function getExerciseCategoryMap(): Promise<Record<string, string>> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("exercises")
+    .select("name, muscle_category")
+    .is("deleted_at", null);
+  const map: Record<string, string> = {};
+  for (const row of data ?? []) {
+    if (row.muscle_category) {
+      map[row.name as string] = row.muscle_category as string;
+    }
+  }
+  return map;
+}
+
+/**
  * Find exercise by name or alias (case-insensitive).
  * Returns the exercise if found, or null.
  */

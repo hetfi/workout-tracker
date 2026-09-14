@@ -30,11 +30,16 @@ import {
   loadDraftTimer,
   deleteDraftTimer,
 } from "@/lib/storage/draft";
+import { getExerciseCategoryMap } from "@/repositories/exercises";
 import { buildExercisePreset } from "@/lib/preset";
 import {
   createTimerState,
   fromRestTimer,
 } from "@/lib/timer";
+import {
+  classifyExercise,
+  type MuscleCategory,
+} from "@/lib/muscleCategory";
 import type {
   WorkoutSession,
   WorkoutSessionExercise,
@@ -64,6 +69,7 @@ export default function SessionPage({
   const [activeExerciseName, setActiveExerciseName] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [loading, setLoading] = useState(true);
+  const [categoriesMap, setCategoriesMap] = useState<Record<string, MuscleCategory>>({});
   const [settings, setSettings] = useState({
     soundEnabled: true,
     vibrationEnabled: true,
@@ -88,6 +94,16 @@ export default function SessionPage({
 
         setSession(sessionData);
         setExercises(exData);
+
+        // 種目マスターから部位カテゴリを取得
+        const masterMap = await getExerciseCategoryMap();
+        const catMap: Record<string, MuscleCategory> = {};
+        for (const ex of exData) {
+          catMap[ex.id] =
+            (masterMap[ex.exerciseName] as MuscleCategory | undefined) ??
+            classifyExercise(ex.exerciseName);
+        }
+        setCategoriesMap(catMap);
 
         const setsData = await getSessionSets(sessionId);
 
@@ -356,34 +372,38 @@ export default function SessionPage({
     [saveDraft]
   );
 
-  // ---- Handle skip exercise ----
-  const handleSkipExercise = useCallback(
-    async (exerciseId: string) => {
-      if (!confirm("この種目をスキップしますか？")) return;
-      try {
-        await updateSessionExercise(exerciseId, { skipped: true });
-        setExercises((prev) =>
-          prev.map((e) => (e.id === exerciseId ? { ...e, skipped: true } : e))
-        );
-      } catch {
-        showToast("スキップの保存に失敗しました", "error");
-      }
-    },
-    [showToast]
-  );
+  // ---- Handle reorder exercises ----
+  const handleMoveExercise = useCallback(
+    async (exerciseId: string, direction: "up" | "down") => {
+      const idx = exercises.findIndex((e) => e.id === exerciseId);
+      if (idx === -1) return;
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= exercises.length) return;
 
-  const handleUnskipExercise = useCallback(
-    async (exerciseId: string) => {
+      const a = exercises[idx];
+      const b = exercises[swapIdx];
+      const aNewOrder = b.sortOrder;
+      const bNewOrder = a.sortOrder;
+
+      setExercises((prev) => {
+        const updated = prev.map((e) => {
+          if (e.id === a.id) return { ...e, sortOrder: aNewOrder };
+          if (e.id === b.id) return { ...e, sortOrder: bNewOrder };
+          return e;
+        });
+        return [...updated].sort((x, y) => x.sortOrder - y.sortOrder);
+      });
+
       try {
-        await updateSessionExercise(exerciseId, { skipped: false });
-        setExercises((prev) =>
-          prev.map((e) => (e.id === exerciseId ? { ...e, skipped: false } : e))
-        );
+        await Promise.all([
+          updateSessionExercise(a.id, { sortOrder: aNewOrder }),
+          updateSessionExercise(b.id, { sortOrder: bNewOrder }),
+        ]);
       } catch {
-        showToast("スキップ解除の保存に失敗しました", "error");
+        showToast("並び替えの保存に失敗しました", "error");
       }
     },
-    [showToast]
+    [exercises, showToast]
   );
 
   // ---- Handle delete exercise ----
@@ -628,15 +648,18 @@ export default function SessionPage({
       </div>
 
       {/* Exercises */}
-      {exercises.map((ex) => (
+      {exercises.map((ex, idx) => (
         <ExerciseCard
           key={ex.id}
           sessionExercise={ex}
           sets={setsMap[ex.id] ?? []}
+          muscleCategory={categoriesMap[ex.id]}
+          isFirst={idx === 0}
+          isLast={idx === exercises.length - 1}
+          onMoveUp={() => handleMoveExercise(ex.id, "up")}
+          onMoveDown={() => handleMoveExercise(ex.id, "down")}
           onSetComplete={(set) => handleSetComplete(ex.id, set)}
           onSetsUpdate={(sets) => handleSetsUpdate(ex.id, sets)}
-          onSkipExercise={() => handleSkipExercise(ex.id)}
-          onUnskipExercise={() => handleUnskipExercise(ex.id)}
           onDeleteExercise={() => handleDeleteExercise(ex.id)}
           onDeleteSet={(clientId) => handleDeleteSet(ex.id, clientId)}
           onAddSet={() => handleAddSet(ex.id)}

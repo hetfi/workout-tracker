@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/Card";
 import { SetRow } from "./SetRow";
 import { WeightRepsPicker } from "./WeightRepsPicker";
 import type { WorkoutSet, WorkoutSessionExercise } from "@/domain/types";
+import type { MuscleCategory } from "@/lib/muscleCategory";
+import { CATEGORY_COLORS, CATEGORY_LABELS } from "@/lib/muscleCategory";
 import { formatRepsTarget, formatRestSeconds } from "@/lib/parser";
 import { applyToRemainingSets } from "@/lib/preset";
 import { createClient } from "@/lib/supabase/client";
@@ -16,10 +18,15 @@ interface ExerciseCardProps {
   smallStep?: number;
   largeStep?: number;
   previousRecord?: string; // e.g. "前回: 60kg × 8回"
+  /** 部位分類（種目マスターから取得） */
+  muscleCategory?: MuscleCategory;
+  /** 並び替え */
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
   onSetComplete: (set: WorkoutSet) => void;
   onSetsUpdate: (sets: WorkoutSet[]) => void;
-  onSkipExercise: () => void;
-  onUnskipExercise?: () => void;
   onDeleteExercise?: () => void;
   onDeleteSet?: (clientId: string) => void;
   onAddSet?: () => void;
@@ -121,10 +128,13 @@ export function ExerciseCard({
   smallStep = 0.5,
   largeStep = 2.5,
   previousRecord,
+  muscleCategory,
+  onMoveUp,
+  onMoveDown,
+  isFirst = false,
+  isLast = false,
   onSetComplete,
   onSetsUpdate,
-  onSkipExercise,
-  onUnskipExercise,
   onDeleteExercise,
   onDeleteSet,
   onAddSet,
@@ -268,10 +278,19 @@ export function ExerciseCard({
   const oneArmPickerReps = oneArmExistingSet?.reps ?? oneArmPresetSet?.reps ?? 0;
 
   return (
-    <Card className={cn("space-y-3", sessionExercise.skipped && "opacity-50")}>
+    <Card className="space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
+          {/* 部位ラベル */}
+          {muscleCategory && (
+            <span
+              className="text-xs font-medium"
+              style={{ color: CATEGORY_COLORS[muscleCategory] }}
+            >
+              {CATEGORY_LABELS[muscleCategory]}
+            </span>
+          )}
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-semibold text-lg text-white truncate">
               {sessionExercise.exerciseName}
@@ -310,8 +329,43 @@ export function ExerciseCard({
           )}
         </div>
 
-        {/* Progress badge + delete */}
-        <div className="shrink-0 flex items-center gap-2">
+        {/* Progress badge + reorder + delete */}
+        <div className="shrink-0 flex items-center gap-1">
+          {/* 並び替えボタン */}
+          {(onMoveUp || onMoveDown) && (
+            <div className="flex flex-col">
+              <button
+                onClick={onMoveUp}
+                disabled={isFirst}
+                className={cn(
+                  "w-7 h-6 flex items-center justify-center rounded-t transition-colors",
+                  isFirst
+                    ? "text-white/[0.15] cursor-default"
+                    : "text-[#8E8E93] hover:text-white hover:bg-white/[0.08]"
+                )}
+                aria-label="上に移動"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="18 15 12 9 6 15"/>
+                </svg>
+              </button>
+              <button
+                onClick={onMoveDown}
+                disabled={isLast}
+                className={cn(
+                  "w-7 h-6 flex items-center justify-center rounded-b transition-colors",
+                  isLast
+                    ? "text-white/[0.15] cursor-default"
+                    : "text-[#8E8E93] hover:text-white hover:bg-white/[0.08]"
+                )}
+                aria-label="下に移動"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+            </div>
+          )}
           {onDeleteExercise && (
             <button
               onClick={() => {
@@ -399,30 +453,6 @@ export function ExerciseCard({
         </button>
       )}
 
-      {/* Skip / Unskip */}
-      {sessionExercise.skipped ? (
-        onUnskipExercise && (
-          <div className="pt-1">
-            <button
-              onClick={onUnskipExercise}
-              className="text-xs text-[#CAFF4D] underline-offset-2 hover:underline"
-            >
-              スキップを解除する
-            </button>
-          </div>
-        )
-      ) : (
-        !isAllDone && (
-          <div className="pt-1">
-            <button
-              onClick={onSkipExercise}
-              className="text-xs text-[#8E8E93] underline-offset-2 hover:underline"
-            >
-              この種目をスキップ
-            </button>
-          </div>
-        )
-      )}
 
       {/* Normal mode picker */}
       {!isOneArmLocal && activeSet && (

@@ -220,12 +220,13 @@ export async function getSessionExercises(
 
 export async function updateSessionExercise(
   id: string,
-  updates: Partial<Pick<WorkoutSessionExercise, "skipped" | "notes">>
+  updates: Partial<Pick<WorkoutSessionExercise, "skipped" | "notes" | "sortOrder">>
 ): Promise<WorkoutSessionExercise> {
   const supabase = createClient();
   const dbUpdates: Record<string, unknown> = {};
   if (updates.skipped !== undefined) dbUpdates.skipped = updates.skipped;
   if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+  if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
 
   const { data, error } = await supabase
     .from("workout_session_exercises")

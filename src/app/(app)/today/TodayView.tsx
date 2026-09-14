@@ -16,11 +16,16 @@ import {
   deleteSessionExercise,
   deleteWorkoutSet,
 } from "@/repositories/workoutSessions";
+import { getExerciseCategoryMap } from "@/repositories/exercises";
 import {
   saveDraftSession,
   loadDraftSession,
 } from "@/lib/storage/draft";
 import { buildExercisePreset } from "@/lib/preset";
+import {
+  classifyExercise,
+  type MuscleCategory,
+} from "@/lib/muscleCategory";
 import type {
   WorkoutSet,
   WorkoutSessionExercise,
@@ -51,6 +56,8 @@ export function TodayView({
   const [setsMap, setSetsMap] = useState<Record<string, WorkoutSet[]>>({});
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [loading, setLoading] = useState(true);
+  /** sessionExerciseId → MuscleCategory */
+  const [categoriesMap, setCategoriesMap] = useState<Record<string, MuscleCategory>>({});
   // セッションIDごとに in_progress に戻したかどうかを追跡（1回だけ更新する）
   const reopenedSessions = useRef<Set<string>>(new Set());
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,6 +80,16 @@ export function TodayView({
         }
 
         setExercises(allExercises);
+
+        // 種目マスターから部位カテゴリを取得
+        const masterMap = await getExerciseCategoryMap();
+        const catMap: Record<string, MuscleCategory> = {};
+        for (const ex of allExercises) {
+          catMap[ex.id] =
+            (masterMap[ex.exerciseName] as MuscleCategory | undefined) ??
+            classifyExercise(ex.exerciseName);
+        }
+        setCategoriesMap(catMap);
 
         const grouped: Record<string, WorkoutSet[]> = {};
         for (const ex of allExercises) grouped[ex.id] = [];
@@ -247,28 +264,40 @@ export function TodayView({
     [saveDraft]
   );
 
-  const handleSkipExercise = useCallback(async (exerciseId: string) => {
-    if (!confirm("この種目をスキップしますか？")) return;
-    try {
-      await updateSessionExercise(exerciseId, { skipped: true });
-      setExercises((prev) =>
-        prev.map((e) => (e.id === exerciseId ? { ...e, skipped: true } : e))
-      );
-    } catch {
-      showToast("スキップの保存に失敗しました", "error");
-    }
-  }, [showToast]);
+  const handleMoveExercise = useCallback(
+    async (exerciseId: string, direction: "up" | "down") => {
+      const idx = exercises.findIndex((e) => e.id === exerciseId);
+      if (idx === -1) return;
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= exercises.length) return;
 
-  const handleUnskipExercise = useCallback(async (exerciseId: string) => {
-    try {
-      await updateSessionExercise(exerciseId, { skipped: false });
-      setExercises((prev) =>
-        prev.map((e) => (e.id === exerciseId ? { ...e, skipped: false } : e))
-      );
-    } catch {
-      showToast("スキップ解除の保存に失敗しました", "error");
-    }
-  }, [showToast]);
+      const a = exercises[idx];
+      const b = exercises[swapIdx];
+      const aNewOrder = b.sortOrder;
+      const bNewOrder = a.sortOrder;
+
+      // ローカル状態を即時更新（sort_order を入れ替えて再ソート）
+      setExercises((prev) => {
+        const updated = prev.map((e) => {
+          if (e.id === a.id) return { ...e, sortOrder: aNewOrder };
+          if (e.id === b.id) return { ...e, sortOrder: bNewOrder };
+          return e;
+        });
+        return [...updated].sort((x, y) => x.sortOrder - y.sortOrder);
+      });
+
+      // DB に永続化
+      try {
+        await Promise.all([
+          updateSessionExercise(a.id, { sortOrder: aNewOrder }),
+          updateSessionExercise(b.id, { sortOrder: bNewOrder }),
+        ]);
+      } catch {
+        showToast("並び替えの保存に失敗しました", "error");
+      }
+    },
+    [exercises, showToast]
+  );
 
   const handleDeleteExercise = useCallback(
     async (exerciseId: string) => {
@@ -449,15 +478,18 @@ export function TodayView({
       </div>
 
       {/* Exercises */}
-      {exercises.map((ex) => (
+      {exercises.map((ex, idx) => (
         <ExerciseCard
           key={ex.id}
           sessionExercise={ex}
           sets={setsMap[ex.id] ?? []}
+          muscleCategory={categoriesMap[ex.id]}
+          isFirst={idx === 0}
+          isLast={idx === exercises.length - 1}
+          onMoveUp={() => handleMoveExercise(ex.id, "up")}
+          onMoveDown={() => handleMoveExercise(ex.id, "down")}
           onSetComplete={(set) => handleSetComplete(ex.id, set)}
           onSetsUpdate={(sets) => handleSetsUpdate(ex.id, sets)}
-          onSkipExercise={() => handleSkipExercise(ex.id)}
-          onUnskipExercise={() => handleUnskipExercise(ex.id)}
           onDeleteExercise={() => handleDeleteExercise(ex.id)}
           onDeleteSet={(clientId) => handleDeleteSet(ex.id, clientId)}
           onAddSet={() => handleAddSet(ex.id)}
