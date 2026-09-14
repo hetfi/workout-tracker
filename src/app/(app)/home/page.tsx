@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { getCalendarData } from "./actions";
 import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar";
+import { CopyButton } from "@/components/ui/CopyButton";
 import {
   classifyExercise,
   CATEGORY_ORDER,
@@ -387,24 +388,48 @@ export default async function HomePage() {
         </div>
       ) : allComplete ? (
         /* 全完了 → お疲れ様 + 今日の実績 */
-        <div className="space-y-3">
-          <div className="rounded-xl bg-[#2C2C2E] border border-[#CAFF4D]/20 p-4">
-            <p className="font-bold text-[#CAFF4D] text-lg">お疲れ様でした！🎉</p>
-            <p className="text-xs text-[#8E8E93] mt-0.5">
-              今日のトレーニングはすべて完了しました
-            </p>
-          </div>
+        (() => {
+          const copyText = [
+            `📋 トレーニング記録｜${formatJapaneseDate(todayStr)}`,
+            achievementTitle,
+            "",
+            ...achievement.map(
+              (ex) =>
+                `・${ex.name}（${CATEGORY_LABELS[ex.category]}）: ${ex.completedSets}セット${
+                  ex.totalVolume > 0 ? ` / ${ex.totalVolume.toLocaleString()}kg` : ""
+                }`
+            ),
+          ].join("\n");
+          return (
+            <div className="space-y-3">
+              <div className="rounded-xl bg-[#2C2C2E] border border-[#CAFF4D]/20 p-4">
+                <p className="font-bold text-[#CAFF4D] text-lg">お疲れ様でした！🎉</p>
+                <p className="text-xs text-[#8E8E93] mt-0.5">
+                  今日のトレーニングはすべて完了しました
+                </p>
+              </div>
 
-          <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-[#8E8E93]">今日の実績</p>
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#CAFF4D]/20 text-[#CAFF4D]">
-                {achievementTitle}
-              </span>
+              <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4">
+                <div className="flex items-center justify-between mb-0.5">
+                  <p className="text-sm font-medium text-[#8E8E93]">今日の実績</p>
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#CAFF4D]/20 text-[#CAFF4D]">
+                    {achievementTitle}
+                  </span>
+                </div>
+                <AchievementList exercises={achievement} />
+                {achievement.length > 0 && (
+                  <div className="mt-3">
+                    <CopyButton
+                      text={copyText}
+                      label="実績をChatGPTにコピー"
+                      className="w-full py-2.5 rounded-xl text-xs font-medium transition-colors"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
-            <AchievementList exercises={achievement} />
-          </div>
-        </div>
+          );
+        })()
       ) : (
         /* 進行中 → 再開ボタン + 完了済み種目 */
         <div className="space-y-3">

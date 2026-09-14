@@ -40,8 +40,11 @@ import {
 } from "@/lib/timer";
 import {
   classifyExercise,
+  CATEGORY_LABELS,
+  CATEGORY_ORDER,
   type MuscleCategory,
 } from "@/lib/muscleCategory";
+import { CopyButton } from "@/components/ui/CopyButton";
 import type {
   WorkoutSession,
   WorkoutSessionExercise,
@@ -53,6 +56,53 @@ import type { TimerState } from "@/lib/timer";
 // Generate a unique client ID for idempotency
 function newClientId(): string {
   return crypto.randomUUID();
+}
+
+function formatJpDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-");
+  const days = ["日", "月", "火", "水", "木", "金", "土"];
+  const dow = days[new Date(`${dateStr}T12:00:00+09:00`).getDay()];
+  return `${y}年${parseInt(m)}月${parseInt(d)}日（${dow}）`;
+}
+
+function buildSessionCopyText(
+  title: string,
+  date: string,
+  exercises: WorkoutSessionExercise[],
+  setsMap: Record<string, WorkoutSet[]>,
+  categoriesMap: Record<string, MuscleCategory>
+): string {
+  const lines: string[] = [
+    `📋 トレーニング記録｜${formatJpDate(date)}`,
+    title,
+    "",
+  ];
+
+  // Group by category
+  const byCategory: Record<string, { ex: WorkoutSessionExercise; completedSets: WorkoutSet[] }[]> = {};
+  for (const ex of exercises) {
+    const completed = (setsMap[ex.id] ?? []).filter((s) => s.status === "completed");
+    if (completed.length === 0) continue;
+    const cat = categoriesMap[ex.id] ?? "other";
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push({ ex, completedSets: completed });
+  }
+
+  const orderedCats = CATEGORY_ORDER.filter((c) => byCategory[c]?.length > 0);
+  for (const cat of orderedCats) {
+    lines.push(`【${CATEGORY_LABELS[cat]}】`);
+    for (const { ex, completedSets } of byCategory[cat]) {
+      const vol = Math.round(completedSets.reduce((acc, s) => acc + s.weight * s.reps, 0));
+      lines.push(`・${ex.exerciseName}: ${completedSets.length}セット${vol > 0 ? ` / ${vol.toLocaleString()}kg` : ""}`);
+      for (const s of completedSets) {
+        const side = s.side ? `(${s.side}) ` : "";
+        lines.push(`  ${s.setNumber}${side}: ${s.weight}kg × ${s.reps}回`);
+      }
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n").trimEnd();
 }
 
 export default function SessionPage({
@@ -691,8 +741,23 @@ export default function SessionPage({
         </a>
       </div>
 
+      {/* Copy button (show when at least 1 set completed) */}
+      {completedSets > 0 && (
+        <CopyButton
+          text={buildSessionCopyText(
+            session.title,
+            session.date,
+            exercises,
+            setsMap,
+            categoriesMap
+          )}
+          label="記録をChatGPTにコピー"
+          className="w-full py-3 rounded-xl text-sm font-medium transition-colors"
+        />
+      )}
+
       {/* Complete button */}
-      <div className="pt-2">
+      <div className="pt-1">
         <Button
           variant="primary"
           size="lg"

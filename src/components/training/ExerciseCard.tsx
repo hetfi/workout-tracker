@@ -41,6 +41,7 @@ interface OneArmSetRowProps {
   defaultWeight: number;
   defaultReps: number;
   onTap: () => void;
+  onDelete?: () => void;
 }
 
 function OneArmSetRow({
@@ -50,73 +51,90 @@ function OneArmSetRow({
   defaultWeight,
   defaultReps,
   onTap,
+  onDelete,
 }: OneArmSetRowProps) {
   const isCompleted = set?.status === "completed";
   const weight = set?.weight ?? defaultWeight;
   const reps = set?.reps ?? defaultReps;
 
   return (
-    <button
-      onClick={onTap}
-      className={cn(
-        "flex items-center w-full",
-        "rounded-xl px-4 py-3 gap-3",
-        "transition-all duration-200",
-        "touch-manipulation select-none",
-        "text-left",
-        isCompleted
-          ? "bg-[#CAFF4D]/10 border border-[#CAFF4D]/30"
-          : "bg-white/[0.06] border border-white/[0.08] active:bg-white/[0.1]"
-      )}
-      aria-label={`${setNumber}セット目 ${side}: 重量${weight}kg 回数${reps}回 ${isCompleted ? "完了" : "未完了"}`}
-    >
-      {/* Set number + side */}
-      <span
+    <div className="flex items-center gap-2">
+      <button
+        onClick={onTap}
         className={cn(
-          "text-sm font-medium w-8 text-center shrink-0",
-          isCompleted ? "text-[#CAFF4D]" : "text-[#8E8E93]"
+          "flex items-center flex-1",
+          "rounded-xl px-4 py-3 gap-3",
+          "transition-all duration-200",
+          "touch-manipulation select-none",
+          "text-left",
+          isCompleted
+            ? "bg-[#CAFF4D]/10 border border-[#CAFF4D]/30"
+            : "bg-white/[0.06] border border-white/[0.08] active:bg-white/[0.1]"
         )}
+        aria-label={`${setNumber}セット目 ${side}: 重量${weight}kg 回数${reps}回 ${isCompleted ? "完了" : "未完了"}`}
       >
-        {setNumber}
-        <span className="font-bold">{side}</span>
-      </span>
-
-      {/* Values */}
-      <div className="flex-1 flex items-baseline gap-2">
+        {/* Set number + side */}
         <span
           className={cn(
-            "text-xl font-bold tabular-nums",
-            isCompleted ? "text-[#CAFF4D]" : "text-white"
+            "text-sm font-medium w-8 text-center shrink-0",
+            isCompleted ? "text-[#CAFF4D]" : "text-[#8E8E93]"
           )}
         >
-          {weight}
-          <span className="text-sm font-normal ml-0.5">kg</span>
+          {setNumber}
+          <span className="font-bold">{side}</span>
         </span>
-        <span className="text-[#8E8E93]">×</span>
-        <span
-          className={cn(
-            "text-xl font-bold tabular-nums",
-            isCompleted ? "text-[#CAFF4D]" : "text-white"
-          )}
-        >
-          {reps}
-          <span className="text-sm font-normal ml-0.5">回</span>
-        </span>
-      </div>
 
-      {/* Status badge */}
-      <div className="shrink-0">
-        {isCompleted ? (
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#CAFF4D] text-black text-sm font-bold">
-            ✓
+        {/* Values */}
+        <div className="flex-1 flex items-baseline gap-2">
+          <span
+            className={cn(
+              "text-xl font-bold tabular-nums",
+              isCompleted ? "text-[#CAFF4D]" : "text-white"
+            )}
+          >
+            {weight}
+            <span className="text-sm font-normal ml-0.5">kg</span>
           </span>
-        ) : (
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white/[0.2] text-[#8E8E93] text-xs">
-            →
+          <span className="text-[#8E8E93]">×</span>
+          <span
+            className={cn(
+              "text-xl font-bold tabular-nums",
+              isCompleted ? "text-[#CAFF4D]" : "text-white"
+            )}
+          >
+            {reps}
+            <span className="text-sm font-normal ml-0.5">回</span>
           </span>
-        )}
-      </div>
-    </button>
+        </div>
+
+        {/* Status badge */}
+        <div className="shrink-0">
+          {isCompleted ? (
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#CAFF4D] text-black text-sm font-bold">
+              ✓
+            </span>
+          ) : (
+            <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white/[0.2] text-[#8E8E93] text-xs">
+              →
+            </span>
+          )}
+        </div>
+      </button>
+
+      {/* Delete button */}
+      {onDelete && (
+        <button
+          onClick={onDelete}
+          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-[#8E8E93] hover:text-red-400 hover:bg-white/[0.08] transition-colors"
+          aria-label={`${setNumber}セット目${side}を削除`}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -414,6 +432,7 @@ export function ExerciseCard({
                 defaultWeight={presetSet?.weight ?? 0}
                 defaultReps={presetSet?.reps ?? 0}
                 onTap={() => handleOneArmTap(n, "L")}
+                onDelete={onDeleteSet && lSet ? () => onDeleteSet(lSet.clientId) : undefined}
               />,
               <OneArmSetRow
                 key={`${n}-R`}
@@ -423,6 +442,7 @@ export function ExerciseCard({
                 defaultWeight={presetSet?.weight ?? 0}
                 defaultReps={presetSet?.reps ?? 0}
                 onTap={() => handleOneArmTap(n, "R")}
+                onDelete={onDeleteSet && rSet ? () => onDeleteSet(rSet.clientId) : undefined}
               />,
             ];
           })

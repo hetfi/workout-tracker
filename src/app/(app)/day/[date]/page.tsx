@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { CopyButton } from "@/components/ui/CopyButton";
 import {
   classifyExercise,
   CATEGORY_ORDER,
@@ -191,56 +192,112 @@ export default async function DayPage({ params }: PageProps) {
 
       <h1 className="text-xl font-bold text-white">{formatJapaneseDate(date)}</h1>
 
-      {/* 実績サマリ（マージ済み） */}
-      {mergedExercises.length > 0 && (
-        <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <p className="font-semibold text-white">{title}</p>
-            {overallStatus === "completed" && (
-              <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-[#CAFF4D]/20 text-[#CAFF4D]">
-                完了
-              </span>
-            )}
-            {overallStatus === "in_progress" && (
-              <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
-                実施中
-              </span>
-            )}
-          </div>
-          <ul className="space-y-1.5">
-            {mergedExercises.map((ex, i) => (
-              <li key={i} className="flex items-center gap-2 text-sm">
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ backgroundColor: CATEGORY_COLORS[ex.category] }}
-                />
-                <span className="text-white flex-1 truncate">{ex.name}</span>
-                <span className="text-[#8E8E93] text-xs shrink-0">
-                  {ex.completedSets}セット
-                  {ex.totalVolume > 0 &&
-                    ` (${ex.totalVolume.toLocaleString()}kg)`}
-                </span>
-              </li>
-            ))}
-          </ul>
+      {/* 実績サマリ（部位カテゴリ別） */}
+      {mergedExercises.length > 0 && (() => {
+        // カテゴリ別にグループ化
+        const byCategory: Record<string, typeof mergedExercises> = {};
+        for (const ex of mergedExercises) {
+          if (!byCategory[ex.category]) byCategory[ex.category] = [];
+          byCategory[ex.category].push(ex);
+        }
+        const cats = CATEGORY_ORDER.filter((c) => byCategory[c]?.length > 0);
 
-          {/* 詳細リンク（最も関連するセッションへ） */}
-          {editableSessions.length > 0 && (() => {
-            const primary =
-              editableSessions.find((s) => s.status === "in_progress") ??
-              editableSessions.find((s) => s.status === "not_started") ??
-              editableSessions[editableSessions.length - 1];
-            return (
-              <Link
-                href={`/session/${primary.id}`}
-                className="block text-xs text-[#CAFF4D] text-right"
-              >
-                詳細 →
-              </Link>
-            );
-          })()}
-        </div>
-      )}
+        // コピー用テキスト
+        const copyText = [
+          `📋 トレーニング記録｜${formatJapaneseDate(date)}`,
+          title,
+          "",
+          ...cats.flatMap((cat) => [
+            `【${CATEGORY_LABELS[cat]}】`,
+            ...byCategory[cat].map(
+              (ex) =>
+                `・${ex.name}: ${ex.completedSets}セット${
+                  ex.totalVolume > 0 ? ` / ${ex.totalVolume.toLocaleString()}kg` : ""
+                }`
+            ),
+          ]),
+        ].join("\n");
+
+        return (
+          <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 space-y-4">
+            {/* タイトル＋ステータス */}
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-semibold text-white">{title}</p>
+              {overallStatus === "completed" && (
+                <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-[#CAFF4D]/20 text-[#CAFF4D]">
+                  完了
+                </span>
+              )}
+              {overallStatus === "in_progress" && (
+                <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
+                  実施中
+                </span>
+              )}
+            </div>
+
+            {/* 部位カテゴリ別リスト */}
+            <div className="space-y-3">
+              {cats.map((cat) => {
+                const exList = byCategory[cat];
+                const catSets = exList.reduce((acc, ex) => acc + ex.completedSets, 0);
+                const catVol = exList.reduce((acc, ex) => acc + ex.totalVolume, 0);
+                return (
+                  <div key={cat}>
+                    {/* カテゴリヘッダー */}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: CATEGORY_COLORS[cat] }}
+                      />
+                      <span className="text-xs font-semibold" style={{ color: CATEGORY_COLORS[cat] }}>
+                        {CATEGORY_LABELS[cat]}
+                      </span>
+                      <span className="text-xs text-[#8E8E93]">
+                        {catSets}セット{catVol > 0 ? ` / ${catVol.toLocaleString()}kg` : ""}
+                      </span>
+                    </div>
+                    {/* 種目リスト */}
+                    <ul className="space-y-1 pl-4">
+                      {exList.map((ex, i) => (
+                        <li key={i} className="flex items-center gap-2 text-sm">
+                          <span className="text-white flex-1 truncate">{ex.name}</span>
+                          <span className="text-[#8E8E93] text-xs shrink-0">
+                            {ex.completedSets}セット
+                            {ex.totalVolume > 0 && ` / ${ex.totalVolume.toLocaleString()}kg`}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 詳細リンク + コピーボタン */}
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <CopyButton
+                text={copyText}
+                label="記録をコピー"
+                className="flex-1 py-2 rounded-xl text-xs font-medium transition-colors"
+              />
+              {editableSessions.length > 0 && (() => {
+                const primary =
+                  editableSessions.find((s) => s.status === "in_progress") ??
+                  editableSessions.find((s) => s.status === "not_started") ??
+                  editableSessions[editableSessions.length - 1];
+                return (
+                  <Link
+                    href={`/session/${primary.id}`}
+                    className="shrink-0 text-xs text-[#CAFF4D] font-medium"
+                  >
+                    詳細 →
+                  </Link>
+                );
+              })()}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
