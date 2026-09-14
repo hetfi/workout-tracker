@@ -15,7 +15,7 @@ interface PageProps {
 function formatJapaneseDate(dateStr: string): string {
   const [y, m, d] = dateStr.split("-");
   const daysOfWeek = ["日", "月", "火", "水", "木", "金", "土"];
-  const date = new Date(`${dateStr}T00:00:00+09:00`);
+  const date = new Date(`${dateStr}T12:00:00+09:00`);
   const dow = daysOfWeek[date.getDay()];
   return `${y}年${parseInt(m)}月${parseInt(d)}日（${dow}）`;
 }

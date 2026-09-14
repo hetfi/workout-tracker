@@ -9,7 +9,7 @@ const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 
 function formatDate(dateStr: string): string {
   const [, m, d] = dateStr.split("-");
-  const date = new Date(`${dateStr}T00:00:00+09:00`);
+  const date = new Date(`${dateStr}T12:00:00+09:00`);
   const dow = DOW[date.getDay()];
   return `${parseInt(m)}/${parseInt(d)}（${dow}）`;
 }

@@ -31,6 +31,7 @@ import {
   deleteDraftTimer,
 } from "@/lib/storage/draft";
 import { getExerciseCategoryMap } from "@/repositories/exercises";
+import { getIntervalEnabled } from "@/lib/storage/localSettings";
 import { buildExercisePreset } from "@/lib/preset";
 import {
   createTimerState,
@@ -320,7 +321,7 @@ export default function SessionPage({
             s.status === "pending" && s.setNumber > completedSet.setNumber
         );
 
-        if (pendingSets.length > 0 && session?.status === "in_progress") {
+        if (pendingSets.length > 0 && session?.status === "in_progress" && getIntervalEnabled()) {
           const nextSet = pendingSets[0];
           const state = createTimerState({
             sessionId,

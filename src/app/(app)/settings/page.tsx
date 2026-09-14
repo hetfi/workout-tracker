@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getUserSettings, updateUserSettings } from "@/repositories/userSettings";
+import { getIntervalEnabled, setIntervalEnabled } from "@/lib/storage/localSettings";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -58,12 +59,14 @@ export default function SettingsPage() {
     vibrationEnabled: true,
     browserNotificationEnabled: false,
   });
+  const [intervalEnabled, setIntervalEnabledState] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     getUserSettings().then((s) => {
       if (s) setSettings(s);
     });
+    setIntervalEnabledState(getIntervalEnabled());
   }, []);
 
   const handleSave = async () => {
@@ -108,20 +111,31 @@ export default function SettingsPage() {
         設定
       </h1>
 
-      {/* Notification settings */}
+      {/* Interval timer settings */}
       <Card className="space-y-4">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-          インターバルタイマー通知
+          インターバルタイマー
         </h2>
         <div className="space-y-3 divide-y divide-gray-100 dark:divide-gray-800">
           <ToggleRow
-            label="通知音"
-            description="インターバル終了時に音を鳴らす"
-            checked={settings.soundEnabled ?? true}
-            onChange={(v) =>
-              setSettings((prev) => ({ ...prev, soundEnabled: v }))
-            }
+            label="インターバルタイマーを使用する"
+            description="セット完了後に自動でインターバルカウントダウンを開始する"
+            checked={intervalEnabled}
+            onChange={(v) => {
+              setIntervalEnabledState(v);
+              setIntervalEnabled(v);
+            }}
           />
+          <div className="pt-3">
+            <ToggleRow
+              label="通知音"
+              description="インターバル終了時に音を鳴らす"
+              checked={settings.soundEnabled ?? true}
+              onChange={(v) =>
+                setSettings((prev) => ({ ...prev, soundEnabled: v }))
+              }
+            />
+          </div>
           <div className="pt-3">
             <ToggleRow
               label="バイブレーション"

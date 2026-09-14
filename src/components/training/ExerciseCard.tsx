@@ -305,7 +305,7 @@ export function ExerciseCard({
                   : "bg-white/[0.06] text-[#8E8E93] border-white/[0.08]"
               )}
             >
-              片手
+              {isOneArmLocal ? "片手" : "両手"}
             </button>
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">

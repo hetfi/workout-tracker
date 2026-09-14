@@ -17,10 +17,18 @@ import {
   deleteWorkoutSet,
 } from "@/repositories/workoutSessions";
 import { getExerciseCategoryMap } from "@/repositories/exercises";
+import { createTimer } from "@/repositories/restTimers";
+import { getUserSettings } from "@/repositories/userSettings";
 import {
   saveDraftSession,
   loadDraftSession,
+  saveDraftTimer,
+  deleteDraftTimer,
 } from "@/lib/storage/draft";
+import { createTimerState } from "@/lib/timer";
+import { getIntervalEnabled } from "@/lib/storage/localSettings";
+import { IntervalTimer } from "@/components/training/IntervalTimer";
+import type { TimerState } from "@/lib/timer";
 import { buildExercisePreset } from "@/lib/preset";
 import {
   classifyExercise,
@@ -61,6 +69,9 @@ export function TodayView({
   const [loading, setLoading] = useState(true);
   /** sessionExerciseId → MuscleCategory */
   const [categoriesMap, setCategoriesMap] = useState<Record<string, MuscleCategory>>({});
+  const [timerState, setTimerState] = useState<TimerState | null>(null);
+  const [activeExerciseName, setActiveExerciseName] = useState("");
+  const [settings, setSettings] = useState({ soundEnabled: true, vibrationEnabled: true });
   // セッションIDごとに in_progress に戻したかどうかを追跡（1回だけ更新する）
   const reopenedSessions = useRef<Set<string>>(new Set());
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,6 +104,15 @@ export function TodayView({
             classifyExercise(ex.exerciseName);
         }
         setCategoriesMap(catMap);
+
+        // ユーザー設定（通知音・バイブ）を取得
+        const userSettings = await getUserSettings();
+        if (userSettings) {
+          setSettings({
+            soundEnabled: userSettings.soundEnabled,
+            vibrationEnabled: userSettings.vibrationEnabled,
+          });
+        }
 
         const grouped: Record<string, WorkoutSet[]> = {};
         for (const ex of allExercises) grouped[ex.id] = [];
@@ -248,12 +268,49 @@ export function TodayView({
 
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2000);
+
+        // インターバルタイマーを起動（設定がオンの場合のみ）
+        if (ex && getIntervalEnabled()) {
+          const currentSets = setsMap[exerciseId] ?? [];
+          const pendingSets = currentSets.filter(
+            (s) =>
+              s.status === "pending" && s.setNumber > completedSet.setNumber
+          );
+          if (pendingSets.length > 0) {
+            const nextSet = pendingSets[0];
+            const state = createTimerState({
+              sessionId: completedSet.sessionId,
+              sessionExerciseId: exerciseId,
+              triggerSetId: completedSet.clientId,
+              nextSetNumber: nextSet.setNumber,
+              durationSeconds: ex.restSeconds,
+            });
+            setTimerState(state);
+            setActiveExerciseName(ex.exerciseName);
+            try {
+              await createTimer(state);
+              await saveDraftTimer({
+                sessionId: state.sessionId,
+                sessionExerciseId: state.sessionExerciseId,
+                triggerSetId: state.triggerSetId,
+                nextSetNumber: state.nextSetNumber,
+                durationSeconds: state.durationSeconds,
+                startedAt: state.startedAt,
+                endsAt: state.endsAt,
+                status: state.status,
+                adjustmentSeconds: state.adjustmentSeconds,
+              });
+            } catch {
+              /* non-critical */
+            }
+          }
+        }
       } catch {
         setSaveStatus("error");
         showToast("セットの保存に失敗しました", "error");
       }
     },
-    [saveDraft, showToast, exercises]
+    [saveDraft, showToast, exercises, setsMap]
   );
 
   const handleSetsUpdate = useCallback(
@@ -301,6 +358,35 @@ export function TodayView({
     },
     [exercises, showToast]
   );
+
+  // ---- Timer callbacks ----
+  const handleTimerUpdate = useCallback(async (updated: TimerState) => {
+    setTimerState(updated);
+    try {
+      await saveDraftTimer({
+        sessionId: updated.sessionId,
+        sessionExerciseId: updated.sessionExerciseId,
+        triggerSetId: updated.triggerSetId,
+        nextSetNumber: updated.nextSetNumber,
+        durationSeconds: updated.durationSeconds,
+        startedAt: updated.startedAt,
+        endsAt: updated.endsAt,
+        status: updated.status,
+        adjustmentSeconds: updated.adjustmentSeconds,
+      });
+    } catch {
+      /* non-critical */
+    }
+  }, []);
+
+  const handleTimerFinish = useCallback(async (finished: TimerState) => {
+    setTimerState(finished);
+    try {
+      await deleteDraftTimer(finished.sessionId);
+    } catch {
+      /* non-critical */
+    }
+  }, []);
 
   const handleDeleteExercise = useCallback(
     async (exerciseId: string) => {
@@ -504,6 +590,18 @@ export function TodayView({
           );
         })}
       </div>
+
+      {/* インターバルタイマー */}
+      {timerState && timerState.status === "running" && (
+        <IntervalTimer
+          timer={timerState}
+          exerciseName={activeExerciseName}
+          onUpdate={handleTimerUpdate}
+          onFinish={handleTimerFinish}
+          soundEnabled={settings.soundEnabled}
+          vibrationEnabled={settings.vibrationEnabled}
+        />
+      )}
 
       {/* Exercises */}
       {exercises.map((ex, idx) => (
