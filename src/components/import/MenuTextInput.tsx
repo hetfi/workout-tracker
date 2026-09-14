@@ -112,12 +112,6 @@ export function MenuTextInput({ onParsed, existingExercises }: MenuTextInputProp
         </button>
         {showPrompt && (
           <div className="px-4 pb-4 space-y-3">
-            <pre
-              className="text-xs rounded-xl p-3 whitespace-pre-wrap font-mono leading-relaxed"
-              style={{ backgroundColor: "#1C1C1E", color: "#CAFF4D" }}
-            >
-              {prompt}
-            </pre>
             <button
               onClick={handleCopyPrompt}
               className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
@@ -129,6 +123,12 @@ export function MenuTextInput({ onParsed, existingExercises }: MenuTextInputProp
             >
               {copied ? "✓ コピーしました" : "📋 ChatGPTへのプロンプトをコピー"}
             </button>
+            <pre
+              className="text-xs rounded-xl p-3 whitespace-pre-wrap font-mono leading-relaxed"
+              style={{ backgroundColor: "#1C1C1E", color: "#CAFF4D" }}
+            >
+              {prompt}
+            </pre>
           </div>
         )}
       </div>

@@ -524,7 +524,7 @@ export function ExerciseCard({
           </div>
         </div>
       </div>
-      {!sessionExercise.isDuration && (
+      {!sessionExercise.isDuration && sessionExercise.plannedRepsTarget.max > 0 && (
         <p className="text-xs text-[#8E8E93] mt-1">
           目安：{sessionExercise.plannedSets}セット×{formatRepsTarget(sessionExercise.plannedRepsTarget)}回
           {" · "}

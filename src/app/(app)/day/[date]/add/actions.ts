@@ -35,6 +35,84 @@ export async function getPastExercises(): Promise<
   }));
 }
 
+/**
+ * 種目名ごとに最新の完了セッションから「完了セット数・計画レップ範囲」を取得する。
+ * セット数 = 最新完了セッションの完了セット数（ユニーク set_number 数）
+ * レップ目安 = その完了セッションエクササイズの planned_reps_min/max
+ */
+interface ExerciseHistoryData {
+  completedSets: number;
+  repsMin: number;
+  repsMax: number;
+}
+
+async function getLatestHistoryForExercises(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  exerciseNames: string[]
+): Promise<Record<string, ExerciseHistoryData>> {
+  if (exerciseNames.length === 0) return {};
+
+  // 1. 最新の完了セッション種目を取得（降順なので先頭が最新）
+  const { data: seRows } = await supabase
+    .from("workout_session_exercises")
+    .select(`
+      id,
+      exercise_name,
+      planned_reps_min,
+      planned_reps_max,
+      workout_sessions!inner(status)
+    `)
+    .eq("user_id", userId)
+    .in("exercise_name", exerciseNames)
+    .eq("workout_sessions.status", "completed")
+    .order("created_at", { ascending: false })
+    .limit(exerciseNames.length * 5);
+
+  // 種目名ごとに最新1件だけ保持
+  const latestByName = new Map<string, { id: string; repsMin: number; repsMax: number }>();
+  for (const row of seRows ?? []) {
+    const r = row as Record<string, unknown>;
+    const name = r.exercise_name as string;
+    if (!latestByName.has(name)) {
+      latestByName.set(name, {
+        id: r.id as string,
+        repsMin: Number(r.planned_reps_min ?? 0),
+        repsMax: Number(r.planned_reps_max ?? 0),
+      });
+    }
+  }
+
+  if (latestByName.size === 0) return {};
+
+  // 2. その session_exercise の完了セットを取得し、ユニーク set_number 数を数える
+  const seIds = Array.from(latestByName.values()).map((v) => v.id);
+  const { data: setRows } = await supabase
+    .from("workout_sets")
+    .select("session_exercise_id, set_number")
+    .in("session_exercise_id", seIds)
+    .eq("status", "completed");
+
+  const result: Record<string, ExerciseHistoryData> = {};
+  for (const [name, info] of latestByName) {
+    const setsForEx = (setRows ?? []).filter(
+      (s: Record<string, unknown>) => s.session_exercise_id === info.id
+    );
+    // ユニークな set_number でペア数（片側種目も通常種目も同じロジックで OK）
+    const uniqueSetNums = new Set(
+      setsForEx.map((s: Record<string, unknown>) => Number(s.set_number))
+    );
+    const completedSets = uniqueSetNums.size;
+    result[name] = {
+      completedSets: completedSets > 0 ? completedSets : 0,
+      repsMin: info.repsMin,
+      repsMax: info.repsMax,
+    };
+  }
+
+  return result;
+}
+
 /** 種目名 → default_rest_seconds のマップを取得する */
 async function getRestSecondsMap(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -57,7 +135,7 @@ async function getRestSecondsMap(
   return map;
 }
 
-/** 新規セッションを作成して種目を追加する（今まで通りの動作） */
+/** 新規セッションを作成して種目を追加する */
 export async function addManualSession(
   date: string,
   exercises: ManualExercise[],
@@ -73,6 +151,16 @@ export async function addManualSession(
 
   // 種目マスターから default_rest_seconds を取得
   const restMap = await getRestSecondsMap(supabase, user.id, exercises.map((e) => e.name));
+
+  // 最新の履歴からセット数・レップ目安を取得して上書き
+  const historyMap = await getLatestHistoryForExercises(supabase, user.id, exercises.map((e) => e.name));
+  exercises = exercises.map((e) => {
+    const hist = historyMap[e.name];
+    if (hist && hist.completedSets > 0) {
+      return { ...e, sets: hist.completedSets, repsMin: hist.repsMin, repsMax: hist.repsMax };
+    }
+    return { ...e, sets: 1, repsMin: 0, repsMax: 0 }; // 履歴なし → 1セット、目安なし
+  });
 
   // Derive title from first exercise
   const title =
@@ -200,6 +288,16 @@ export async function addExercisesToSession(
 
   // 種目マスターから default_rest_seconds を取得
   const restMap = await getRestSecondsMap(supabase, user.id, exercises.map((e) => e.name));
+
+  // 最新の履歴からセット数・レップ目安を取得して上書き
+  const historyMap = await getLatestHistoryForExercises(supabase, user.id, exercises.map((e) => e.name));
+  exercises = exercises.map((e) => {
+    const hist = historyMap[e.name];
+    if (hist && hist.completedSets > 0) {
+      return { ...e, sets: hist.completedSets, repsMin: hist.repsMin, repsMax: hist.repsMax };
+    }
+    return { ...e, sets: 1, repsMin: 0, repsMax: 0 };
+  });
 
   const sessionExercises = exercises.map((e, i) => ({
     user_id: user.id,

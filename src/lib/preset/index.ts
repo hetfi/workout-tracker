@@ -97,7 +97,7 @@ function buildDefaultSets(
   plannedSets: number,
   repsTarget: RepsTarget
 ): PreviousSetRecord[] {
-  const defaultReps = repsTarget.min > 0 ? repsTarget.min : 10;
+  const defaultReps = repsTarget.max > 0 ? (repsTarget.min > 0 ? repsTarget.min : 10) : 0;
   return Array.from({ length: plannedSets }, (_, i) => ({
     setNumber: i + 1,
     weight: 0,

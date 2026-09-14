@@ -146,7 +146,11 @@ export function TodayView({
             const completedSets = (grouped[ex.id] ?? []).filter(
               (s) => s.status === "completed"
             );
-            const preset = buildExercisePreset(ex, prev);
+            // 履歴があれば履歴のユニーク setNumber 数（ペア数）を使い、なければ plannedSets
+            const prevCompleted = prev?.sets.filter((s) => s.status === "completed") ?? [];
+            const uniqueSetNums = new Set(prevCompleted.map((s) => s.setNumber)).size;
+            const historySetCount = uniqueSetNums > 0 ? uniqueSetNums : ex.plannedSets;
+            const preset = buildExercisePreset({ ...ex, plannedSets: historySetCount }, prev);
             const rebuilt: WorkoutSet[] = [];
             for (const p of preset.sets) {
               for (const side of ["L", "R"] as const) {
@@ -178,8 +182,10 @@ export function TodayView({
             }
             grouped[ex.id] = rebuilt;
           } else {
-            // 通常種目 / isDuration: 既存ロジック
-            const effectiveEx = ex.isDuration ? { ...ex, plannedSets: 1 } : ex;
+            // 通常種目 / isDuration: 履歴があれば履歴のセット数を使う
+            const prevCompletedCount = prev?.sets.filter((s) => s.status === "completed").length ?? 0;
+            const historySetCount = prevCompletedCount > 0 ? prevCompletedCount : ex.plannedSets;
+            const effectiveEx = ex.isDuration ? { ...ex, plannedSets: 1 } : { ...ex, plannedSets: historySetCount };
             const preset = buildExercisePreset(effectiveEx, prev);
             grouped[ex.id] = preset.sets.map((p) => ({
               id: newId(),
