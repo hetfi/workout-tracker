@@ -190,23 +190,36 @@ export function ExerciseCard({
   const [deletedOneArmSlots, setDeletedOneArmSlots] = useState<Set<string>>(new Set());
 
   // Delete a pending one-arm slot that has no DB record yet
+  // Root cause fix: previously used sessionExercise.plannedSets (static prop) and
+  // deletedOneArmSlots.size (stale closure), causing wrong planned_sets values on
+  // multiple deletions. Now computed inside the setState callback for correctness.
   const handleDeletePendingOneArmSlot = useCallback(
-    async (slotNumber: number, side: "L" | "R") => {
+    (slotNumber: number, side: "L" | "R") => {
       const key = `${slotNumber}-${side}`;
-      setDeletedOneArmSlots((prev) => new Set([...prev, key]));
-      // Decrement planned_sets in DB (count remaining slots)
-      const newCount = sessionExercise.plannedSets - deletedOneArmSlots.size - 1;
-      const supabase = createClient();
-      try {
-        await supabase
+      setDeletedOneArmSlots((prev) => {
+        if (prev.has(key)) return prev; // already deleted
+        const next = new Set([...prev, key]);
+
+        // A set PAIR is fully deleted only when BOTH sides are in the deleted set.
+        // Only decrement planned_sets for fully-deleted pairs (not individual sides).
+        let fullyDeletedPairs = 0;
+        for (let n = 1; n <= sessionExercise.plannedSets; n++) {
+          if (next.has(`${n}-L`) && next.has(`${n}-R`)) fullyDeletedPairs++;
+        }
+        const newPlannedSets = Math.max(1, sessionExercise.plannedSets - fullyDeletedPairs);
+
+        // Async DB update — fire-and-forget (non-critical)
+        createClient()
           .from("workout_session_exercises")
-          .update({ planned_sets: Math.max(1, newCount) })
-          .eq("id", sessionExercise.id);
-      } catch {
-        // Non-critical
-      }
+          .update({ planned_sets: newPlannedSets })
+          .eq("id", sessionExercise.id)
+          .then(() => {})
+          .catch(() => {});
+
+        return next;
+      });
     },
-    [sessionExercise.id, sessionExercise.plannedSets, deletedOneArmSlots.size]
+    [sessionExercise.id, sessionExercise.plannedSets]
   );
 
   // Toggle one-arm mode (persists to DB)
@@ -332,6 +345,23 @@ export function ExerciseCard({
     [activeSetIndex, sets, onSetsUpdate, isOneArmLocal]
   );
 
+  // 片側モード: 現在タップしたスロット以降の pending セット全体に適用
+  const handleOneArmApplyToRemaining = useCallback(
+    (weight: number, reps: number) => {
+      if (!isOneArmLocal || activeSetNumber === null || activeSide === null) return;
+      const updated = sets.map((s) => {
+        if (s.status !== "pending") return s;
+        // 同セット番号の逆サイド、または後続セット番号は全て適用
+        const isSameSetOtherSide =
+          s.setNumber === activeSetNumber && s.side !== activeSide;
+        const isLaterSet = s.setNumber > activeSetNumber;
+        return isSameSetOtherSide || isLaterSet ? { ...s, weight, reps } : s;
+      });
+      onSetsUpdate(updated);
+    },
+    [activeSetNumber, activeSide, sets, onSetsUpdate, isOneArmLocal]
+  );
+
   // isDuration 種目は常に 1 セット扱い
   const effectivePlannedSets = sessionExercise.isDuration ? 1 : sessionExercise.plannedSets;
 
@@ -342,7 +372,8 @@ export function ExerciseCard({
   if (isOneArmLocal) {
     const sideSets = sets.filter((s) => s.side === "L" || s.side === "R");
     completedCount = sideSets.filter((s) => s.status === "completed").length;
-    totalCount = effectivePlannedSets * 2;
+    // Subtract individually-deleted slots so badge reflects actual visible slots
+    totalCount = effectivePlannedSets * 2 - deletedOneArmSlots.size;
   } else {
     completedCount = sets.filter((s) => s.status === "completed").length;
     totalCount = sets.length;
@@ -620,6 +651,7 @@ export function ExerciseCard({
           smallStep={smallStep}
           largeStep={largeStep}
           side={activeSide}
+          onApplyToRemaining={handleOneArmApplyToRemaining}
           onComplete={handleComplete}
           isLastSet={false}
           isDuration={sessionExercise.isDuration}

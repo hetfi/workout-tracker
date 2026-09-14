@@ -18,11 +18,9 @@ interface ExerciseEditFormProps {
 }
 
 const REST_PRESETS = [
-  { label: "30秒", value: 30 },
   { label: "1分", value: 60 },
   { label: "1分30秒", value: 90 },
   { label: "2分", value: 120 },
-  { label: "2分30秒", value: 150 },
   { label: "3分", value: 180 },
 ] as const;
 
@@ -194,7 +192,7 @@ export function ExerciseEditForm({
       <Card>
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="font-medium text-white">片手種目</p>
+            <p className="font-medium text-white">片側種目</p>
             <p className="text-xs text-[#8E8E93] mt-0.5">左右それぞれ記録します</p>
           </div>
           <button
