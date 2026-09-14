@@ -95,7 +95,27 @@ export function MenuTextInput({ onParsed, existingExercises }: MenuTextInputProp
 
   return (
     <div className="space-y-4">
-      {/* Prompt copy section */}
+      {/* ① コピーボタン: 常時表示（最上部） */}
+      <div className="space-y-2">
+        <button
+          onClick={handleCopyPrompt}
+          className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+          style={
+            copied
+              ? { backgroundColor: "#3A3A3C", color: "#CAFF4D" }
+              : { backgroundColor: "#CAFF4D", color: "#0D0D0F" }
+          }
+        >
+          {copied ? "✓ コピーしました" : "📋 ChatGPTへのプロンプトをコピー"}
+        </button>
+        {existingExercises && existingExercises.length > 0 && (
+          <p className="text-xs text-center" style={{ color: "#8E8E93" }}>
+            登録済み種目 {existingExercises.length}件 を含めています
+          </p>
+        )}
+      </div>
+
+      {/* ② プロンプト確認（折りたたみ） */}
       <div
         className="rounded-xl overflow-hidden"
         style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
@@ -104,36 +124,17 @@ export function MenuTextInput({ onParsed, existingExercises }: MenuTextInputProp
           onClick={() => setShowPrompt((v) => !v)}
           className="w-full flex items-center justify-between px-4 py-3 text-sm"
         >
-          <span style={{ color: "#FFFFFF" }}>💡 ChatGPTへのプロンプトをコピー</span>
+          <span style={{ color: "#8E8E93" }}>プロンプトを確認する</span>
           <span style={{ color: "#8E8E93" }}>{showPrompt ? "▲" : "▼"}</span>
         </button>
         {showPrompt && (
           <div className="px-4 pb-4 space-y-3">
-            <p className="text-xs" style={{ color: "#8E8E93" }}>
-              ChatGPTに以下のプロンプトを送ると、取り込みに対応したフォーマットで出力されます
-            </p>
-            {existingExercises && existingExercises.length > 0 && (
-              <p className="text-xs" style={{ color: "#CAFF4D" }}>
-                ✓ 登録済み種目 {existingExercises.length}件 をプロンプトに含めています
-              </p>
-            )}
             <pre
               className="text-xs rounded-xl p-3 whitespace-pre-wrap font-mono leading-relaxed"
               style={{ backgroundColor: "#1C1C1E", color: "#CAFF4D" }}
             >
               {prompt}
             </pre>
-            <button
-              onClick={handleCopyPrompt}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold transition-colors"
-              style={
-                copied
-                  ? { backgroundColor: "#3A3A3C", color: "#CAFF4D" }
-                  : { backgroundColor: "#CAFF4D", color: "#0D0D0F" }
-              }
-            >
-              {copied ? "✓ コピーしました" : "プロンプトをコピー"}
-            </button>
           </div>
         )}
       </div>

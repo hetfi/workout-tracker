@@ -131,38 +131,56 @@ export function TodayView({
           grouped[ex.id] = [...completed, ...pending.slice(0, 1)];
         }
 
-        // プリセットが必要な種目を一括取得（N+1 → 1 クエリ）
+        // 片側種目は DB の stale data に左右されないよう常に L+R 構造を再構築する。
+        // 通常種目は DB にセットがない場合だけプリセット生成。
         const exercisesNeedingPresets = enrichedExercises.filter(
-          (ex) => grouped[ex.id].length === 0
+          (ex) => ex.isOneArm ? !ex.isDuration : grouped[ex.id].length === 0
         );
         const prevDataMap = await getPreviousSessionDataBatch(exercisesNeedingPresets);
         for (const ex of exercisesNeedingPresets) {
           const prev = prevDataMap.get(ex.exerciseName) ?? null;
-          // isDuration 種目は常に 1 セットだけプリセット生成
-          const effectiveEx = ex.isDuration ? { ...ex, plannedSets: 1 } : ex;
-          const preset = buildExercisePreset(effectiveEx, prev);
+
           if (ex.isOneArm && !ex.isDuration) {
-            // 片側種目: L と R それぞれのスロットを生成
-            // （side: null のプリセットだと完了判定に残り続けるため）
-            grouped[ex.id] = preset.sets.flatMap((p) =>
-              (["L", "R"] as const).map((side) => ({
-                id: newId(),
-                userId: "",
-                sessionExerciseId: ex.id,
-                sessionId: ex.sessionId,
-                setNumber: p.setNumber,
-                weight: p.weight,
-                reps: p.reps,
-                status: "pending" as const,
-                completedAt: null,
-                notes: null,
-                clientId: newId(),
-                side,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              }))
+            // 片側種目: completed セットは保持し、pending スロットだけ再構築
+            // stale な高 setNumber セット（旧バグ由来）は除外される
+            const completedSets = (grouped[ex.id] ?? []).filter(
+              (s) => s.status === "completed"
             );
+            const preset = buildExercisePreset(ex, prev);
+            const rebuilt: WorkoutSet[] = [];
+            for (const p of preset.sets) {
+              for (const side of ["L", "R"] as const) {
+                const existing = completedSets.find(
+                  (s) => s.setNumber === p.setNumber && s.side === side
+                );
+                if (existing) {
+                  rebuilt.push(existing);
+                } else {
+                  const clientId = newId();
+                  rebuilt.push({
+                    id: clientId,
+                    userId: "",
+                    sessionExerciseId: ex.id,
+                    sessionId: ex.sessionId,
+                    setNumber: p.setNumber,
+                    weight: p.weight,
+                    reps: p.reps,
+                    status: "pending" as const,
+                    completedAt: null,
+                    notes: null,
+                    clientId,
+                    side,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  });
+                }
+              }
+            }
+            grouped[ex.id] = rebuilt;
           } else {
+            // 通常種目 / isDuration: 既存ロジック
+            const effectiveEx = ex.isDuration ? { ...ex, plannedSets: 1 } : ex;
+            const preset = buildExercisePreset(effectiveEx, prev);
             grouped[ex.id] = preset.sets.map((p) => ({
               id: newId(),
               userId: "",
