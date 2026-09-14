@@ -4,7 +4,8 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MenuTextInput } from "@/components/import/MenuTextInput";
 import { MenuPreview } from "@/components/import/MenuPreview";
-import { saveParsedWorkout, listPlans } from "@/repositories/workoutPlans";
+import { saveParsedWorkout, listPlans, getPlanExercises } from "@/repositories/workoutPlans";
+import { createSessionFromPlanWithDuration } from "@/repositories/workoutSessions";
 import { useToast } from "@/components/ui/Toast";
 import type { ParsedWorkout } from "@/domain/types";
 
@@ -47,9 +48,19 @@ function ImportPageInner() {
         // else: save as new (fall through)
       }
 
-      await saveParsedWorkout(workout, raw);
+      const plan = await saveParsedWorkout(workout, raw);
+
+      // Create a session from the plan so it appears immediately in today's menu
+      const planExercises = await getPlanExercises(plan.id);
+      const isDurationByName: Record<string, boolean> = {};
+      for (const ex of workout.exercises) {
+        if (ex.isDuration) isDurationByName[ex.name] = true;
+      }
+      await createSessionFromPlanWithDuration(plan, planExercises, isDurationByName);
+
       showToast("メニューを登録しました", "success");
       router.push("/home");
+      router.refresh();
     } catch (err) {
       console.error(err);
       showToast("登録に失敗しました。もう一度お試しください。", "error");

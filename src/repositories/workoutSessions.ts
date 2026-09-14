@@ -124,6 +124,18 @@ export async function createSessionFromPlan(
   plan: WorkoutPlan,
   planExercises: WorkoutPlanExercise[]
 ): Promise<WorkoutSession> {
+  return createSessionFromPlanWithDuration(plan, planExercises, {});
+}
+
+/**
+ * Create a session from a plan, with explicit isDuration info per exercise name.
+ * Used by the import flow where we know which exercises are duration from parsed data.
+ */
+export async function createSessionFromPlanWithDuration(
+  plan: WorkoutPlan,
+  planExercises: WorkoutPlanExercise[],
+  isDurationByName: Record<string, boolean>
+): Promise<WorkoutSession> {
   const supabase = createClient();
   const {
     data: { user },
@@ -160,6 +172,7 @@ export async function createSessionFromPlan(
       sort_order: pe.sortOrder,
       notes: pe.notes,
       is_one_arm: false,
+      is_duration: isDurationByName[pe.exerciseName] ?? false,
     }));
   if (exerciseRows.length > 0) {
     await supabase.from("workout_session_exercises").insert(exerciseRows);
