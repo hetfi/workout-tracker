@@ -112,10 +112,25 @@ async function getTodayData(userId: string) {
       s.status !== "completed" || (sessionSetCounts[s.id] ?? 0) > 0
   );
 
+  // アクティブセッションに種目が1件でもあるか確認
+  const activeSessionIds = validSessions
+    .filter((s) => s.status === "not_started" || s.status === "in_progress")
+    .map((s) => s.id);
+  let hasExercises = false;
+  if (activeSessionIds.length > 0) {
+    const { count } = await supabase
+      .from("workout_session_exercises")
+      .select("id", { count: "exact", head: true })
+      .in("session_id", activeSessionIds);
+    hasExercises = (count ?? 0) > 0;
+  }
+
   return {
     todayStr,
     sessions: validSessions,
     streakSessions: streakSessions ?? [],
+    firstActiveSessionId: activeSessionIds[0] ?? null,
+    hasExercises,
   };
 }
 
@@ -220,7 +235,7 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { todayStr, sessions, streakSessions } =
+  const { todayStr, sessions, streakSessions, firstActiveSessionId, hasExercises } =
     await getTodayData(user.id);
 
   const jstYear = parseInt(todayStr.slice(0, 4));
@@ -232,6 +247,8 @@ export default async function HomePage() {
     (s) => s.status === "in_progress" || s.status === "not_started"
   );
   const allComplete = hasAnySessions && !hasActiveSessions;
+  // セッションがあっても種目が0件の場合は「追加」UIを出す
+  const showAddUI = !hasAnySessions || (hasActiveSessions && !hasExercises);
 
   // 実績データ（セッションがある場合は常に取得）
   const achievement = hasAnySessions
@@ -271,24 +288,30 @@ export default async function HomePage() {
 
       {/* ====== Main section ====== */}
 
-      {!hasAnySessions ? (
-        /* セッションなし → 作成オプション */
+      {showAddUI ? (
+        /* セッションなし or 種目0件 → 作成オプション */
         <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 space-y-3">
-          <p className="text-sm text-[#8E8E93]">今日のトレーニングは未登録です</p>
-          <div className="flex gap-2">
-            <Link
-              href="/import"
-              className="flex-1 text-center text-sm py-3 rounded-xl bg-white/[0.08] text-white font-medium"
-            >
-              GPTで取り込む
-            </Link>
-            <Link
-              href={`/day/${todayStr}/add`}
-              className="flex-1 text-center text-sm py-3 rounded-xl bg-white/[0.08] text-white font-medium"
-            >
-              手動で追加
-            </Link>
-          </div>
+          <p className="text-sm text-[#8E8E93]">
+            {hasAnySessions ? "種目を追加してトレーニングを始めましょう" : "今日のトレーニングは未登録です"}
+          </p>
+          <Link
+            href={`/import?date=${todayStr}`}
+            className="block text-center text-sm py-3 rounded-xl font-semibold"
+            style={{ backgroundColor: "#CAFF4D", color: "#0D0D0F" }}
+          >
+            ChatGPTから取り込む
+          </Link>
+          <Link
+            href={
+              firstActiveSessionId
+                ? `/day/${todayStr}/add?sessionId=${firstActiveSessionId}&backTo=/today`
+                : `/day/${todayStr}/add`
+            }
+            className="block text-center text-sm py-3 rounded-xl font-medium"
+            style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
+          >
+            ＋ 種目を追加
+          </Link>
         </div>
       ) : allComplete ? (
         /* 全完了 → お疲れ様 + 今日の実績 */
