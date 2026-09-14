@@ -4,8 +4,8 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MenuTextInput } from "@/components/import/MenuTextInput";
 import { MenuPreview } from "@/components/import/MenuPreview";
-import { saveParsedWorkout, listPlans, getPlanExercises } from "@/repositories/workoutPlans";
-import { createSessionFromPlanWithDuration } from "@/repositories/workoutSessions";
+import { saveParsedWorkout, listPlans } from "@/repositories/workoutPlans";
+import { createSessionFromParsedExercises } from "@/repositories/workoutSessions";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/Toast";
 import type { ParsedWorkout } from "@/domain/types";
@@ -63,10 +63,13 @@ function ImportPageInner() {
   const handleConfirm = async (workout: ParsedWorkout, raw: string) => {
     setSaving(true);
     try {
-      // Check for duplicate
+      // Check for duplicate (activeなプランのみ対象 — archived は除外)
       const existing = await listPlans(workout.date);
       const duplicate = existing.find(
-        (p) => p.title === workout.title && p.date === workout.date
+        (p) =>
+          p.title === workout.title &&
+          p.date === workout.date &&
+          p.status !== "archived"
       );
 
       if (duplicate) {
@@ -82,23 +85,14 @@ function ImportPageInner() {
       // 1. プラン + 種目マスター保存
       const plan = await saveParsedWorkout(workout, raw);
 
-      // 2. プラン種目を取得してセッション作成
-      const planExercises = await getPlanExercises(plan.id);
-
-      // ParsedExercise からルックアップマップを構築
-      const isDurationByName: Record<string, boolean> = {};
+      // 2. ParsedExercise[] から直接セッション + セッション種目を作成
+      //    (getPlanExercises は使わない — DBへの往復タイミング問題を回避)
       const isOneArmByName: Record<string, boolean> = {};
       for (const ex of workout.exercises) {
-        if (ex.isDuration) isDurationByName[ex.name] = true;
         if (ex.isOneArm) isOneArmByName[ex.name] = true;
       }
 
-      await createSessionFromPlanWithDuration(
-        plan,
-        planExercises,
-        isDurationByName,
-        isOneArmByName
-      );
+      await createSessionFromParsedExercises(plan, workout.exercises, isOneArmByName);
 
       showToast("メニューを登録しました", "success");
       // router.push はクライアント側キャッシュを使うことがあるため

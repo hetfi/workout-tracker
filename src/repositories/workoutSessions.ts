@@ -3,6 +3,7 @@ import type {
   WorkoutSession,
   WorkoutSessionExercise,
   WorkoutSet,
+  ParsedExercise,
 } from "@/domain/types";
 import type { PreviousExerciseData } from "@/lib/preset";
 import type { WorkoutPlan, WorkoutPlanExercise } from "@/domain/types";
@@ -182,6 +183,59 @@ export async function createSessionFromPlanWithDuration(
       .from("workout_session_exercises")
       .insert(exerciseRows);
     if (exError) throw exError; // propagate so the caller can show an error toast
+  }
+
+  return session;
+}
+
+/**
+ * GPTインポート用: ParsedExercise[] からセッション + セッション種目を一括作成する。
+ * getPlanExercises() を経由しないため、DBの往復によるタイミング問題が起きない。
+ */
+export async function createSessionFromParsedExercises(
+  plan: WorkoutPlan,
+  exercises: ParsedExercise[],
+  isOneArmByName: Record<string, boolean> = {}
+): Promise<WorkoutSession> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data: sessionData, error: sessionError } = await supabase
+    .from("workout_sessions")
+    .insert({
+      user_id: user.id,
+      plan_id: plan.id,
+      date: plan.date,
+      title: plan.title,
+      status: "not_started",
+    })
+    .select()
+    .single();
+
+  if (sessionError) throw sessionError;
+  const session = toSession(sessionData);
+
+  if (exercises.length > 0) {
+    const exerciseRows = exercises.map((ex, i) => ({
+      user_id: user.id,
+      session_id: session.id,
+      exercise_name: ex.name,
+      planned_sets: ex.sets,
+      planned_reps_min: ex.repsTarget.min,
+      planned_reps_max: ex.repsTarget.max,
+      rest_seconds: ex.restSeconds,
+      sort_order: i,
+      notes: ex.notes ?? null,
+      is_one_arm: isOneArmByName[ex.name] ?? ex.isOneArm ?? false,
+    }));
+
+    const { error: exError } = await supabase
+      .from("workout_session_exercises")
+      .insert(exerciseRows);
+    if (exError) throw exError;
   }
 
   return session;
