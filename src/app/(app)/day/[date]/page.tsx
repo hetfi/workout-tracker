@@ -69,8 +69,20 @@ export default async function DayPage({ params }: PageProps) {
           </Link>
         </div>
         <h1 className="text-xl font-bold text-white">{formatJapaneseDate(date)}</h1>
-        <div className="text-center py-10 text-[#8E8E93]">
-          この日のトレーニング記録はありません
+        <div
+          className="rounded-xl p-4 space-y-3"
+          style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <p className="text-sm" style={{ color: "#8E8E93" }}>
+            この日のトレーニング記録はありません
+          </p>
+          <Link
+            href={`/day/${date}/add?backTo=/day/${date}`}
+            className="block text-center text-sm py-3 rounded-xl font-medium"
+            style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
+          >
+            ＋ 手動で種目を追加する
+          </Link>
         </div>
       </div>
     );
@@ -313,6 +325,26 @@ export default async function DayPage({ params }: PageProps) {
               })()}
             </div>
           </div>
+        );
+      })()}
+
+      {/* 過去日の種目追加 */}
+      {(() => {
+        const activeSession =
+          sessionList.find((s) => s.status === "in_progress") ??
+          sessionList.find((s) => s.status === "not_started") ??
+          sessionList[sessionList.length - 1];
+        const addHref = activeSession
+          ? `/day/${date}/add?sessionId=${activeSession.id}&backTo=/day/${date}`
+          : `/day/${date}/add?backTo=/day/${date}`;
+        return (
+          <Link
+            href={addHref}
+            className="block text-center text-sm py-3 rounded-xl font-medium"
+            style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
+          >
+            ＋ 種目を追加する
+          </Link>
         );
       })()}
     </div>
