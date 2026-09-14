@@ -19,6 +19,7 @@ interface ExerciseCardProps {
   onSetComplete: (set: WorkoutSet) => void;
   onSetsUpdate: (sets: WorkoutSet[]) => void;
   onSkipExercise: () => void;
+  onUnskipExercise?: () => void;
   onDeleteExercise?: () => void;
   onDeleteSet?: (clientId: string) => void;
   onAddSet?: () => void;
@@ -123,6 +124,7 @@ export function ExerciseCard({
   onSetComplete,
   onSetsUpdate,
   onSkipExercise,
+  onUnskipExercise,
   onDeleteExercise,
   onDeleteSet,
   onAddSet,
@@ -397,16 +399,29 @@ export function ExerciseCard({
         </button>
       )}
 
-      {/* Skip */}
-      {!sessionExercise.skipped && !isAllDone && (
-        <div className="pt-1">
-          <button
-            onClick={onSkipExercise}
-            className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline-offset-2 hover:underline"
-          >
-            この種目をスキップ
-          </button>
-        </div>
+      {/* Skip / Unskip */}
+      {sessionExercise.skipped ? (
+        onUnskipExercise && (
+          <div className="pt-1">
+            <button
+              onClick={onUnskipExercise}
+              className="text-xs text-[#CAFF4D] underline-offset-2 hover:underline"
+            >
+              スキップを解除する
+            </button>
+          </div>
+        )
+      ) : (
+        !isAllDone && (
+          <div className="pt-1">
+            <button
+              onClick={onSkipExercise}
+              className="text-xs text-[#8E8E93] underline-offset-2 hover:underline"
+            >
+              この種目をスキップ
+            </button>
+          </div>
+        )
       )}
 
       {/* Normal mode picker */}

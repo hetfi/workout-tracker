@@ -259,6 +259,17 @@ export function TodayView({
     }
   }, [showToast]);
 
+  const handleUnskipExercise = useCallback(async (exerciseId: string) => {
+    try {
+      await updateSessionExercise(exerciseId, { skipped: false });
+      setExercises((prev) =>
+        prev.map((e) => (e.id === exerciseId ? { ...e, skipped: false } : e))
+      );
+    } catch {
+      showToast("スキップ解除の保存に失敗しました", "error");
+    }
+  }, [showToast]);
+
   const handleDeleteExercise = useCallback(
     async (exerciseId: string) => {
       try {
@@ -446,6 +457,7 @@ export function TodayView({
           onSetComplete={(set) => handleSetComplete(ex.id, set)}
           onSetsUpdate={(sets) => handleSetsUpdate(ex.id, sets)}
           onSkipExercise={() => handleSkipExercise(ex.id)}
+          onUnskipExercise={() => handleUnskipExercise(ex.id)}
           onDeleteExercise={() => handleDeleteExercise(ex.id)}
           onDeleteSet={(clientId) => handleDeleteSet(ex.id, clientId)}
           onAddSet={() => handleAddSet(ex.id)}
