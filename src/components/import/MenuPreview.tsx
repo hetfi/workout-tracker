@@ -14,6 +14,13 @@ interface MenuPreviewProps {
   defaultDate?: string;
 }
 
+function formatDateJP(dateStr: string): string {
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  return `${y}年${parseInt(m)}月${parseInt(d)}日`;
+}
+
 const MUSCLE_LABELS: Record<string, string> = {
   chest: "胸", shoulder: "肩", back: "背", leg: "脚",
   arm: "腕", ab: "腹", cardio: "有酸素",
@@ -94,13 +101,12 @@ export function MenuPreview({
       >
         <div>
           <label className="text-xs block mb-1" style={{ color: "#8E8E93" }}>日付</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+          <div
+            className="w-full rounded-xl px-3 py-2.5 text-sm font-medium"
             style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.12)" }}
-          />
+          >
+            {formatDateJP(date)}
+          </div>
         </div>
         <div>
           <label className="text-xs block mb-1" style={{ color: "#8E8E93" }}>タイトル</label>

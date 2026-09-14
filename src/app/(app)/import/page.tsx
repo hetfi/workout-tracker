@@ -101,8 +101,9 @@ function ImportPageInner() {
       );
 
       showToast("メニューを登録しました", "success");
-      router.refresh(); // invalidate Next.js router cache so /today re-fetches
-      router.push("/today");
+      // router.push はクライアント側キャッシュを使うことがあるため
+      // フルリロードで確実に最新データを取得する
+      window.location.href = "/today";
     } catch (err) {
       console.error(err);
       showToast("登録に失敗しました。もう一度お試しください。", "error");
