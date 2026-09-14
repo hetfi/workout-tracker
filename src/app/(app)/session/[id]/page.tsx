@@ -780,7 +780,7 @@ export default function SessionPage({
           onSetsUpdate={(sets) => handleSetsUpdate(ex.id, sets)}
           onDeleteExercise={() => handleDeleteExercise(ex.id)}
           onDeleteSet={(clientId) => handleDeleteSet(ex.id, clientId)}
-          onAddSet={() => handleAddSet(ex.id)}
+          onAddSet={(nextSN) => handleAddSet(ex.id)}
         />
       ))}
 

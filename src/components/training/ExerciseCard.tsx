@@ -29,7 +29,8 @@ interface ExerciseCardProps {
   onSetsUpdate: (sets: WorkoutSet[]) => void;
   onDeleteExercise?: () => void;
   onDeleteSet?: (clientId: string) => void;
-  onAddSet?: () => void;
+  /** nextSetNumber: 片側モードで呼び出す際にExerciseCardが次のセット番号を渡す */
+  onAddSet?: (nextSetNumber?: number) => void;
 }
 
 // --- One-arm row sub-component ---
@@ -188,6 +189,8 @@ export function ExerciseCard({
 
   // One-arm: track locally-deleted pending slots (setNumber → side)
   const [deletedOneArmSlots, setDeletedOneArmSlots] = useState<Set<string>>(new Set());
+  // One-arm: ユーザーがセット追加した回数（DBの stale データに左右されない pair 数管理）
+  const [addedPairs, setAddedPairs] = useState(0);
 
   // Delete a pending one-arm slot that has no DB record yet
   // Root cause fix: previously used sessionExercise.plannedSets (static prop) and
@@ -365,15 +368,10 @@ export function ExerciseCard({
   // isDuration 種目は常に 1 セット扱い
   const effectivePlannedSets = sessionExercise.isDuration ? 1 : sessionExercise.plannedSets;
 
-  // 片側モード: setsMap に含まれる実際の L/R セット数からペア数を導出
-  // （セット追加後も sessionExercise.plannedSets は更新されないため）
+  // 片側モード: plannedSets + ユーザーが追加したペア数でペア総数を管理。
+  // DB に stale な高 setNumber セットが残っていても影響を受けない。
   const oneArmPairCount = isOneArmLocal
-    ? Math.max(
-        effectivePlannedSets,
-        sets
-          .filter((s) => s.side === "L" || s.side === "R")
-          .reduce((mx, s) => Math.max(mx, s.setNumber), 0)
-      )
+    ? effectivePlannedSets + addedPairs
     : effectivePlannedSets;
 
   // Progress counts
@@ -381,10 +379,12 @@ export function ExerciseCard({
   let totalCount: number;
 
   if (isOneArmLocal) {
-    // L+R プリセット方式: setsMap の L/R セットをそのまま集計
-    const sideSets = sets.filter((s) => s.side === "L" || s.side === "R");
-    completedCount = sideSets.filter((s) => s.status === "completed").length;
-    totalCount = sideSets.length - deletedOneArmSlots.size;
+    // oneArmPairCount の範囲内の L/R セットだけ集計（stale DB データを除外）
+    const visibleSideSets = sets.filter(
+      (s) => (s.side === "L" || s.side === "R") && s.setNumber <= oneArmPairCount
+    );
+    completedCount = visibleSideSets.filter((s) => s.status === "completed").length;
+    totalCount = visibleSideSets.length - deletedOneArmSlots.size;
   } else {
     completedCount = sets.filter((s) => s.status === "completed").length;
     totalCount = sets.length;
@@ -616,7 +616,16 @@ export function ExerciseCard({
       {/* Add set button */}
       {onAddSet && !sessionExercise.skipped && (
         <button
-          onClick={onAddSet}
+          onClick={() => {
+            if (isOneArmLocal) {
+              // 次のセット番号を ExerciseCard 側で管理して親に渡す
+              const nextSN = oneArmPairCount + 1;
+              setAddedPairs((p) => p + 1);
+              onAddSet(nextSN);
+            } else {
+              onAddSet();
+            }
+          }}
           className="w-full text-xs text-[#8E8E93] hover:text-[#CAFF4D] py-2 border border-dashed border-white/[0.12] hover:border-[#CAFF4D]/40 rounded-xl transition-colors"
         >
           ＋ セット追加

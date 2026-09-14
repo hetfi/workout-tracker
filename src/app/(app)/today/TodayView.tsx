@@ -458,78 +458,84 @@ export function TodayView({
   );
 
   const handleAddSet = useCallback(
-    async (exerciseId: string) => {
+    async (exerciseId: string, nextSetNumber?: number) => {
       const ex = exercises.find((e) => e.id === exerciseId);
-      const existingSets = setsMap[exerciseId] ?? [];
-      const maxSetNumber = existingSets.reduce(
-        (max, s) => Math.max(max, s.setNumber),
-        0
-      );
-      const newSetNumber = maxSetNumber + 1;
-      const lastSet = existingSets[existingSets.length - 1];
 
       if (ex?.isOneArm) {
-        // 片側種目: L と R の両スロットを追加
-        const newSets: WorkoutSet[] = (["L", "R"] as const).map((side) => {
-          const clientId = newId();
-          return {
-            id: clientId,
-            userId: "",
-            sessionExerciseId: exerciseId,
-            sessionId: ex.sessionId,
-            setNumber: newSetNumber,
-            weight: lastSet?.weight ?? 0,
-            reps: lastSet?.reps ?? 0,
-            status: "pending" as const,
-            completedAt: null,
-            notes: null,
-            clientId,
-            side,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-        });
+        // 片側種目: ExerciseCard が計算した nextSetNumber を使う（stale DB セットに左右されない）
         setSetsMap((prev) => {
+          const currentSets = prev[exerciseId] ?? [];
+          const lastSet = currentSets[currentSets.length - 1];
+          // nextSetNumber が渡された場合はそれを使い、ない場合は max + 1
+          const newSN =
+            nextSetNumber ??
+            currentSets.reduce((mx, s) => Math.max(mx, s.setNumber), 0) + 1;
+          const newSets: WorkoutSet[] = (["L", "R"] as const).map((side) => {
+            const clientId = newId();
+            return {
+              id: clientId,
+              userId: "",
+              sessionExerciseId: exerciseId,
+              sessionId: ex.sessionId,
+              setNumber: newSN,
+              weight: lastSet?.weight ?? 0,
+              reps: lastSet?.reps ?? 0,
+              status: "pending" as const,
+              completedAt: null,
+              notes: null,
+              clientId,
+              side,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+          });
           const updated = {
             ...prev,
-            [exerciseId]: [...(prev[exerciseId] ?? []), ...newSets],
+            [exerciseId]: [...currentSets, ...newSets],
           };
           saveDraft(updated);
           return updated;
         });
       } else {
-        const clientId = newId();
-        const newSet: WorkoutSet = {
-          id: clientId,
-          userId: lastSet?.userId ?? "",
-          sessionExerciseId: exerciseId,
-          sessionId: ex?.sessionId ?? "",
-          setNumber: newSetNumber,
-          weight: lastSet?.weight ?? 0,
-          reps: lastSet?.reps ?? 0,
-          status: "pending",
-          completedAt: null,
-          notes: null,
-          clientId,
-          side: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
         setSetsMap((prev) => {
+          const currentSets = prev[exerciseId] ?? [];
+          const maxSN = currentSets.reduce((mx, s) => Math.max(mx, s.setNumber), 0);
+          const lastSet = currentSets[currentSets.length - 1];
+          const clientId = newId();
+          const newSet: WorkoutSet = {
+            id: clientId,
+            userId: lastSet?.userId ?? "",
+            sessionExerciseId: exerciseId,
+            sessionId: ex?.sessionId ?? "",
+            setNumber: maxSN + 1,
+            weight: lastSet?.weight ?? 0,
+            reps: lastSet?.reps ?? 0,
+            status: "pending",
+            completedAt: null,
+            notes: null,
+            clientId,
+            side: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
           const updated = {
             ...prev,
-            [exerciseId]: [...(prev[exerciseId] ?? []), newSet],
+            [exerciseId]: [...currentSets, newSet],
           };
           saveDraft(updated);
           return updated;
         });
+        // 通常セットはDB保存（fire-and-forget）
+        const currentSets = setsMap[exerciseId] ?? [];
+        const maxSN = currentSets.reduce((mx, s) => Math.max(mx, s.setNumber), 0);
+        const clientId = newId();
         try {
           await upsertSet({
             sessionExerciseId: exerciseId,
             sessionId: ex?.sessionId ?? "",
-            setNumber: newSet.setNumber,
-            weight: newSet.weight,
-            reps: newSet.reps,
+            setNumber: maxSN + 1,
+            weight: currentSets[currentSets.length - 1]?.weight ?? 0,
+            reps: currentSets[currentSets.length - 1]?.reps ?? 0,
             status: "pending",
             completedAt: null,
             notes: null,
@@ -693,7 +699,7 @@ export function TodayView({
           onSetsUpdate={(sets) => handleSetsUpdate(ex.id, sets)}
           onDeleteExercise={() => handleDeleteExercise(ex.id)}
           onDeleteSet={(clientId) => handleDeleteSet(ex.id, clientId)}
-          onAddSet={() => handleAddSet(ex.id)}
+          onAddSet={(nextSN) => handleAddSet(ex.id, nextSN)}
         />
       ))}
 
