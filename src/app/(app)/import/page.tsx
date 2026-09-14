@@ -59,8 +59,7 @@ function ImportPageInner() {
       await createSessionFromPlanWithDuration(plan, planExercises, isDurationByName);
 
       showToast("メニューを登録しました", "success");
-      router.push("/home");
-      router.refresh();
+      router.push("/today");
     } catch (err) {
       console.error(err);
       showToast("登録に失敗しました。もう一度お試しください。", "error");
