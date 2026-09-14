@@ -44,7 +44,7 @@ export default async function TodayPage() {
           </p>
           <div className="flex gap-2">
             <Link
-              href="/import"
+              href={`/import?date=${todayStr}`}
               className="flex-1 text-center text-sm py-3 rounded-xl bg-white/[0.08] text-white font-medium"
             >
               GPTで取り込む
