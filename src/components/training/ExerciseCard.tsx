@@ -305,9 +305,12 @@ export function ExerciseCard({
         );
         const presetSet =
           sets.find((s) => s.setNumber === activeSetNumber) ?? sets[0];
-        const clientId = `${sessionExercise.id}-${activeSetNumber}-${activeSide}`;
+        // client_id カラムは UUID 型のため、composite 文字列（UUID-N-L）は不正。
+        // pending スロットにはすでに正規 UUID の clientId が付いているのでそれを使う。
+        // 初回完了（pending なし）の場合のみ新規 UUID を生成する。
+        const clientId = existingSet?.clientId ?? crypto.randomUUID();
         const updated: WorkoutSet = {
-          id: existingSet?.id ?? crypto.randomUUID(),
+          id: existingSet?.id ?? clientId,
           userId: presetSet?.userId ?? "",
           sessionExerciseId: sessionExercise.id,
           sessionId: presetSet?.sessionId ?? sessionExercise.sessionId,
