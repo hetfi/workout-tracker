@@ -2,11 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Next.js 16 proxy (renamed from middleware).
+ * Next.js middleware.
  * Refreshes Supabase session tokens on every request.
  * Redirects unauthenticated users to /login.
  */
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
