@@ -40,6 +40,7 @@ interface OneArmSetRowProps {
   set: WorkoutSet | undefined;
   defaultWeight: number;
   defaultReps: number;
+  isDuration?: boolean;
   onTap: () => void;
   onDelete?: () => void;
 }
@@ -50,6 +51,7 @@ function OneArmSetRow({
   set,
   defaultWeight,
   defaultReps,
+  isDuration = false,
   onTap,
   onDelete,
 }: OneArmSetRowProps) {
@@ -71,7 +73,11 @@ function OneArmSetRow({
             ? "bg-[#CAFF4D]/10 border border-[#CAFF4D]/30"
             : "bg-white/[0.06] border border-white/[0.08] active:bg-white/[0.1]"
         )}
-        aria-label={`${setNumber}セット目 ${side}: 重量${weight}kg 回数${reps}回 ${isCompleted ? "完了" : "未完了"}`}
+        aria-label={
+          isDuration
+            ? `${setNumber}セット目 ${side}: ${reps}分 ${isCompleted ? "完了" : "未完了"}`
+            : `${setNumber}セット目 ${side}: 重量${weight}kg 回数${reps}回 ${isCompleted ? "完了" : "未完了"}`
+        }
       >
         {/* Set number + side */}
         <span
@@ -86,25 +92,39 @@ function OneArmSetRow({
 
         {/* Values */}
         <div className="flex-1 flex items-baseline gap-2">
-          <span
-            className={cn(
-              "text-xl font-bold tabular-nums",
-              isCompleted ? "text-[#CAFF4D]" : "text-white"
-            )}
-          >
-            {weight}
-            <span className="text-sm font-normal ml-0.5">kg</span>
-          </span>
-          <span className="text-[#8E8E93]">×</span>
-          <span
-            className={cn(
-              "text-xl font-bold tabular-nums",
-              isCompleted ? "text-[#CAFF4D]" : "text-white"
-            )}
-          >
-            {reps}
-            <span className="text-sm font-normal ml-0.5">回</span>
-          </span>
+          {isDuration ? (
+            <span
+              className={cn(
+                "text-xl font-bold tabular-nums",
+                isCompleted ? "text-[#CAFF4D]" : "text-white"
+              )}
+            >
+              {reps > 0 ? reps : "—"}
+              <span className="text-sm font-normal ml-0.5">分</span>
+            </span>
+          ) : (
+            <>
+              <span
+                className={cn(
+                  "text-xl font-bold tabular-nums",
+                  isCompleted ? "text-[#CAFF4D]" : "text-white"
+                )}
+              >
+                {weight}
+                <span className="text-sm font-normal ml-0.5">kg</span>
+              </span>
+              <span className="text-[#8E8E93]">×</span>
+              <span
+                className={cn(
+                  "text-xl font-bold tabular-nums",
+                  isCompleted ? "text-[#CAFF4D]" : "text-white"
+                )}
+              >
+                {reps}
+                <span className="text-sm font-normal ml-0.5">回</span>
+              </span>
+            </>
+          )}
         </div>
 
         {/* Status badge */}
@@ -166,16 +186,69 @@ export function ExerciseCard({
   const [activeSetNumber, setActiveSetNumber] = useState<number | null>(null);
   const [activeSide, setActiveSide] = useState<"L" | "R" | null>(null);
 
+  // One-arm: track locally-deleted pending slots (setNumber → side)
+  const [deletedOneArmSlots, setDeletedOneArmSlots] = useState<Set<string>>(new Set());
+
+  // Delete a pending one-arm slot that has no DB record yet
+  const handleDeletePendingOneArmSlot = useCallback(
+    async (slotNumber: number, side: "L" | "R") => {
+      const key = `${slotNumber}-${side}`;
+      setDeletedOneArmSlots((prev) => new Set([...prev, key]));
+      // Decrement planned_sets in DB (count remaining slots)
+      const newCount = sessionExercise.plannedSets - deletedOneArmSlots.size - 1;
+      const supabase = createClient();
+      try {
+        await supabase
+          .from("workout_session_exercises")
+          .update({ planned_sets: Math.max(1, newCount) })
+          .eq("id", sessionExercise.id);
+      } catch {
+        // Non-critical
+      }
+    },
+    [sessionExercise.id, sessionExercise.plannedSets, deletedOneArmSlots.size]
+  );
+
   // Toggle one-arm mode (persists to DB)
+  // 完了済みセットがある場合はリセット確認ダイアログを表示
   const handleToggleOneArm = useCallback(async () => {
     const next = !isOneArmLocal;
+
+    // 切り替え後のモードと互換性のない完了セットを検出
+    const incompatibleSets = next
+      ? sets.filter((s) => s.status === "completed" && !s.side) // 両手完了 → 片手切替時
+      : sets.filter((s) => s.status === "completed" && (s.side === "L" || s.side === "R")); // 片手完了 → 両手切替時
+
+    if (incompatibleSets.length > 0) {
+      const modeLabel = next ? "片手" : "両手";
+      const confirmed = window.confirm(
+        `${modeLabel}モードに切り替えると、完了済みのセット（${incompatibleSets.length}件）がリセットされます。よろしいですか？`
+      );
+      if (!confirmed) return;
+
+      // 完了セットをDBから削除
+      const supabase = createClient();
+      await Promise.allSettled(
+        incompatibleSets.map((s) =>
+          supabase.from("workout_sets").delete().eq("client_id", s.clientId)
+        )
+      );
+
+      // ローカルのセット状態をリセット（ペンディングのみ残す、sideをnullに）
+      const resetSets = sets
+        .filter((s) => !incompatibleSets.some((r) => r.clientId === s.clientId))
+        .map((s) => ({ ...s, status: "pending" as const, side: null }));
+      onSetsUpdate(resetSets);
+      setDeletedOneArmSlots(new Set());
+    }
+
     setIsOneArmLocal(next);
     const supabase = createClient();
     await supabase
       .from("workout_session_exercises")
       .update({ is_one_arm: next })
       .eq("id", sessionExercise.id);
-  }, [isOneArmLocal, sessionExercise.id]);
+  }, [isOneArmLocal, sessionExercise.id, sets, onSetsUpdate]);
 
   // Normal mode: tap set row
   const handleSetTap = useCallback((index: number) => {
@@ -259,6 +332,9 @@ export function ExerciseCard({
     [activeSetIndex, sets, onSetsUpdate, isOneArmLocal]
   );
 
+  // isDuration 種目は常に 1 セット扱い
+  const effectivePlannedSets = sessionExercise.isDuration ? 1 : sessionExercise.plannedSets;
+
   // Progress counts
   let completedCount: number;
   let totalCount: number;
@@ -266,7 +342,7 @@ export function ExerciseCard({
   if (isOneArmLocal) {
     const sideSets = sets.filter((s) => s.side === "L" || s.side === "R");
     completedCount = sideSets.filter((s) => s.status === "completed").length;
-    totalCount = sessionExercise.plannedSets * 2;
+    totalCount = effectivePlannedSets * 2;
   } else {
     completedCount = sets.filter((s) => s.status === "completed").length;
     totalCount = sets.length;
@@ -326,11 +402,13 @@ export function ExerciseCard({
               {isOneArmLocal ? "片手" : "両手"}
             </button>
           </div>
-          <p className="text-xs text-[#8E8E93] mt-0.5">
-            {sessionExercise.plannedSets}セット×{formatRepsTarget(sessionExercise.plannedRepsTarget)}回
-            {" · "}
-            間隔{formatRestSeconds(sessionExercise.restSeconds)}
-          </p>
+          {!sessionExercise.isDuration && (
+            <p className="text-xs text-[#8E8E93] mt-0.5">
+              目安：{sessionExercise.plannedSets}セット×{formatRepsTarget(sessionExercise.plannedRepsTarget)}回
+              {" · "}
+              間隔{formatRestSeconds(sessionExercise.restSeconds)}
+            </p>
+          )}
           {sessionExercise.notes && (
             <p className="text-xs mt-0.5" style={{ color: "#64B5F6" }}>
               ✦ {sessionExercise.notes}
@@ -417,34 +495,58 @@ export function ExerciseCard({
         {isOneArmLocal ? (
           // One-arm mode: L and R row for each planned set
           Array.from(
-            { length: sessionExercise.plannedSets },
+            { length: effectivePlannedSets },
             (_, i) => i + 1
           ).flatMap((n) => {
             const lSet = sets.find((s) => s.setNumber === n && s.side === "L");
             const rSet = sets.find((s) => s.setNumber === n && s.side === "R");
             const presetSet = sets.find((s) => s.setNumber === n);
-            return [
-              <OneArmSetRow
-                key={`${n}-L`}
-                setNumber={n}
-                side="L"
-                set={lSet}
-                defaultWeight={presetSet?.weight ?? 0}
-                defaultReps={presetSet?.reps ?? 0}
-                onTap={() => handleOneArmTap(n, "L")}
-                onDelete={onDeleteSet && lSet ? () => onDeleteSet(lSet.clientId) : undefined}
-              />,
-              <OneArmSetRow
-                key={`${n}-R`}
-                setNumber={n}
-                side="R"
-                set={rSet}
-                defaultWeight={presetSet?.weight ?? 0}
-                defaultReps={presetSet?.reps ?? 0}
-                onTap={() => handleOneArmTap(n, "R")}
-                onDelete={onDeleteSet && rSet ? () => onDeleteSet(rSet.clientId) : undefined}
-              />,
-            ];
+            const lKey = `${n}-L`;
+            const rKey = `${n}-R`;
+            const rows = [];
+            if (!deletedOneArmSlots.has(lKey)) {
+              rows.push(
+                <OneArmSetRow
+                  key={lKey}
+                  setNumber={n}
+                  side="L"
+                  set={lSet}
+                  defaultWeight={presetSet?.weight ?? 0}
+                  defaultReps={presetSet?.reps ?? 0}
+                  isDuration={sessionExercise.isDuration}
+                  onTap={() => handleOneArmTap(n, "L")}
+                  onDelete={
+                    onDeleteSet
+                      ? lSet
+                        ? () => onDeleteSet(lSet.clientId)
+                        : () => handleDeletePendingOneArmSlot(n, "L")
+                      : undefined
+                  }
+                />
+              );
+            }
+            if (!deletedOneArmSlots.has(rKey)) {
+              rows.push(
+                <OneArmSetRow
+                  key={rKey}
+                  setNumber={n}
+                  side="R"
+                  set={rSet}
+                  defaultWeight={presetSet?.weight ?? 0}
+                  defaultReps={presetSet?.reps ?? 0}
+                  isDuration={sessionExercise.isDuration}
+                  onTap={() => handleOneArmTap(n, "R")}
+                  onDelete={
+                    onDeleteSet
+                      ? rSet
+                        ? () => onDeleteSet(rSet.clientId)
+                        : () => handleDeletePendingOneArmSlot(n, "R")
+                      : undefined
+                  }
+                />
+              );
+            }
+            return rows;
           })
         ) : (
           // Normal mode
@@ -452,6 +554,7 @@ export function ExerciseCard({
             <SetRow
               key={s.clientId}
               set={s}
+              isDuration={sessionExercise.isDuration}
               onTap={() => handleSetTap(i)}
               onDelete={onDeleteSet ? () => onDeleteSet(s.clientId) : undefined}
             />
@@ -487,6 +590,7 @@ export function ExerciseCard({
           onApplyToRemaining={handleApplyToRemaining}
           onComplete={handleComplete}
           isLastSet={isLastPendingSet}
+          isDuration={sessionExercise.isDuration}
         />
       )}
 
@@ -509,6 +613,7 @@ export function ExerciseCard({
           side={activeSide}
           onComplete={handleComplete}
           isLastSet={false}
+          isDuration={sessionExercise.isDuration}
         />
       )}
     </Card>

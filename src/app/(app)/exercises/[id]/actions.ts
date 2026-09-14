@@ -7,7 +7,8 @@ export async function saveExerciseMeta(
   exerciseId: string,
   muscleCategory: string,
   isOneArm: boolean,
-  defaultRestSeconds: number
+  defaultRestSeconds: number,
+  isDuration: boolean = false
 ): Promise<void> {
   const supabase = await createClient();
   const {
@@ -21,6 +22,7 @@ export async function saveExerciseMeta(
       muscle_category: muscleCategory,
       is_one_arm: isOneArm,
       default_rest_seconds: defaultRestSeconds,
+      is_duration: isDuration,
     })
     .eq("id", exerciseId)
     .eq("user_id", user.id);

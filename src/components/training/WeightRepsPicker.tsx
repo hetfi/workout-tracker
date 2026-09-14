@@ -26,6 +26,11 @@ interface WeightRepsPickerProps {
   onComplete: (weight: number, reps: number) => void;
   /** Whether this is the last incomplete set */
   isLastSet?: boolean;
+  /**
+   * When true, shows a minutes picker instead of weight × reps.
+   * `reps` stores minutes; `weight` is always 0.
+   */
+  isDuration?: boolean;
 }
 
 export function WeightRepsPicker({
@@ -41,15 +46,21 @@ export function WeightRepsPicker({
   onApplyToRemaining,
   onComplete,
   isLastSet = false,
+  isDuration = false,
 }: WeightRepsPickerProps) {
   const [weight, setWeight] = useState(initialWeight);
   const [reps, setReps] = useState(initialReps);
+  // duration mode: reps stores minutes (1–300)
+  const [minutes, setMinutes] = useState(initialReps > 0 ? initialReps : 20);
+  const [editingMinutes, setEditingMinutes] = useState(false);
+  const [minutesInput, setMinutesInput] = useState(String(initialReps > 0 ? initialReps : 20));
   const [editingWeight, setEditingWeight] = useState(false);
   const [editingReps, setEditingReps] = useState(false);
   const [weightInput, setWeightInput] = useState(String(initialWeight));
   const [repsInput, setRepsInput] = useState(String(initialReps));
   const weightInputRef = useRef<HTMLInputElement>(null);
   const repsInputRef = useRef<HTMLInputElement>(null);
+  const minutesInputRef = useRef<HTMLInputElement>(null);
 
   const handleWeightChange = (delta: number) => {
     setWeight((prev) => {
@@ -115,125 +126,196 @@ export function WeightRepsPicker({
 
   const sideLabel = side ? ` (${side})` : "";
 
+  const commitMinutes = () => {
+    const v = parseInt(minutesInput, 10);
+    if (!isNaN(v) && v > 0) {
+      const clamped = Math.min(300, Math.max(1, v));
+      setMinutes(clamped);
+      setMinutesInput(String(clamped));
+    } else {
+      setMinutesInput(String(minutes));
+    }
+    setEditingMinutes(false);
+  };
+
+  const handleMinutesChange = (delta: number) => {
+    setMinutes((prev) => {
+      const next = Math.min(300, Math.max(1, prev + delta));
+      setMinutesInput(String(next));
+      return next;
+    });
+  };
+
   return (
     <BottomSheet open={open} onClose={onClose} title={`${exerciseName} - ${setNumber}セット目${sideLabel}`}>
       <div className="space-y-6">
-        {/* Weight section */}
-        <div>
-          <p className="text-xs font-medium text-[#8E8E93] mb-2 uppercase tracking-wide">
-            重量 (kg)
-          </p>
-          <div className="flex items-center justify-between gap-2">
-            {/* Large decrease */}
-            {stepButton(`-${largeStep}`, () => handleWeightChange(-largeStep), "lg")}
-            {/* Small decrease */}
-            {stepButton(`-${smallStep}`, () => handleWeightChange(-smallStep))}
+        {isDuration ? (
+          /* Duration (minutes) mode */
+          <div>
+            <p className="text-xs font-medium text-[#8E8E93] mb-2 uppercase tracking-wide">
+              時間（分）
+            </p>
+            <div className="flex items-center justify-between gap-2">
+              {stepButton("-10", () => handleMinutesChange(-10), "lg")}
+              {stepButton("-5", () => handleMinutesChange(-5))}
 
-            {/* Weight display / input */}
-            <div className="flex-1 flex justify-center">
-              {editingWeight ? (
-                <input
-                  ref={weightInputRef}
-                  type="number"
-                  value={weightInput}
-                  onChange={(e) => setWeightInput(e.target.value)}
-                  onBlur={commitWeight}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") commitWeight();
-                    if (e.key === "Escape") {
-                      setWeightInput(String(weight));
-                      setEditingWeight(false);
-                    }
-                  }}
-                  className={cn(
-                    "w-full text-center text-5xl font-bold",
-                    "bg-transparent border-b-2 border-[#CAFF4D]",
-                    "text-white",
-                    "focus:outline-none"
+              <div className="flex-1 flex flex-col items-center justify-center gap-0.5">
+                {editingMinutes ? (
+                  <input
+                    ref={minutesInputRef}
+                    type="number"
+                    value={minutesInput}
+                    onChange={(e) => setMinutesInput(e.target.value)}
+                    onBlur={commitMinutes}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitMinutes();
+                      if (e.key === "Escape") {
+                        setMinutesInput(String(minutes));
+                        setEditingMinutes(false);
+                      }
+                    }}
+                    className={cn(
+                      "w-full text-center text-5xl font-bold",
+                      "bg-transparent border-b-2 border-[#CAFF4D]",
+                      "text-white focus:outline-none"
+                    )}
+                    inputMode="numeric"
+                    step="1"
+                    autoFocus
+                  />
+                ) : (
+                  <button
+                    onClick={() => {
+                      setEditingMinutes(true);
+                      setMinutesInput(String(minutes));
+                      setTimeout(() => minutesInputRef.current?.select(), 50);
+                    }}
+                    className="text-5xl font-bold text-white tabular-nums"
+                    aria-label={`${minutes}分 タップして編集`}
+                  >
+                    {minutes}
+                  </button>
+                )}
+                <span className="text-sm text-[#8E8E93]">分</span>
+              </div>
+
+              {stepButton("+5", () => handleMinutesChange(5))}
+              {stepButton("+10", () => handleMinutesChange(10), "lg")}
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Weight section */}
+            <div>
+              <p className="text-xs font-medium text-[#8E8E93] mb-2 uppercase tracking-wide">
+                重量 (kg)
+              </p>
+              <div className="flex items-center justify-between gap-2">
+                {stepButton(`-${largeStep}`, () => handleWeightChange(-largeStep), "lg")}
+                {stepButton(`-${smallStep}`, () => handleWeightChange(-smallStep))}
+
+                <div className="flex-1 flex justify-center">
+                  {editingWeight ? (
+                    <input
+                      ref={weightInputRef}
+                      type="number"
+                      value={weightInput}
+                      onChange={(e) => setWeightInput(e.target.value)}
+                      onBlur={commitWeight}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitWeight();
+                        if (e.key === "Escape") {
+                          setWeightInput(String(weight));
+                          setEditingWeight(false);
+                        }
+                      }}
+                      className={cn(
+                        "w-full text-center text-5xl font-bold",
+                        "bg-transparent border-b-2 border-[#CAFF4D]",
+                        "text-white focus:outline-none"
+                      )}
+                      inputMode="decimal"
+                      step="0.01"
+                      autoFocus
+                    />
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditingWeight(true);
+                        setWeightInput(String(weight));
+                        setTimeout(() => weightInputRef.current?.select(), 50);
+                      }}
+                      className="text-5xl font-bold text-white tabular-nums"
+                      aria-label={`重量 ${weight}kg タップして編集`}
+                    >
+                      {weight}
+                    </button>
                   )}
-                  inputMode="decimal"
-                  step="0.01"
-                  autoFocus
-                />
-              ) : (
-                <button
-                  onClick={() => {
-                    setEditingWeight(true);
-                    setWeightInput(String(weight));
-                    setTimeout(() => weightInputRef.current?.select(), 50);
-                  }}
-                  className="text-5xl font-bold text-white tabular-nums"
-                  aria-label={`重量 ${weight}kg タップして編集`}
-                >
-                  {weight}
-                </button>
-              )}
+                </div>
+
+                {stepButton(`+${smallStep}`, () => handleWeightChange(smallStep))}
+                {stepButton(`+${largeStep}`, () => handleWeightChange(largeStep), "lg")}
+              </div>
             </div>
 
-            {/* Small increase */}
-            {stepButton(`+${smallStep}`, () => handleWeightChange(smallStep))}
-            {/* Large increase */}
-            {stepButton(`+${largeStep}`, () => handleWeightChange(largeStep), "lg")}
-          </div>
-        </div>
+            {/* Reps section */}
+            <div>
+              <p className="text-xs font-medium text-[#8E8E93] mb-2 uppercase tracking-wide">
+                回数
+              </p>
+              <div className="flex items-center justify-between gap-2">
+                {stepButton("-5", () => handleRepsChange(-5), "lg")}
+                {stepButton("-1", () => handleRepsChange(-1))}
 
-        {/* Reps section */}
-        <div>
-          <p className="text-xs font-medium text-[#8E8E93] mb-2 uppercase tracking-wide">
-            回数
-          </p>
-          <div className="flex items-center justify-between gap-2">
-            {stepButton("-5", () => handleRepsChange(-5), "lg")}
-            {stepButton("-1", () => handleRepsChange(-1))}
-
-            <div className="flex-1 flex justify-center">
-              {editingReps ? (
-                <input
-                  ref={repsInputRef}
-                  type="number"
-                  value={repsInput}
-                  onChange={(e) => setRepsInput(e.target.value)}
-                  onBlur={commitReps}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") commitReps();
-                    if (e.key === "Escape") {
-                      setRepsInput(String(reps));
-                      setEditingReps(false);
-                    }
-                  }}
-                  className={cn(
-                    "w-full text-center text-5xl font-bold",
-                    "bg-transparent border-b-2 border-[#CAFF4D]",
-                    "text-white",
-                    "focus:outline-none"
+                <div className="flex-1 flex justify-center">
+                  {editingReps ? (
+                    <input
+                      ref={repsInputRef}
+                      type="number"
+                      value={repsInput}
+                      onChange={(e) => setRepsInput(e.target.value)}
+                      onBlur={commitReps}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitReps();
+                        if (e.key === "Escape") {
+                          setRepsInput(String(reps));
+                          setEditingReps(false);
+                        }
+                      }}
+                      className={cn(
+                        "w-full text-center text-5xl font-bold",
+                        "bg-transparent border-b-2 border-[#CAFF4D]",
+                        "text-white focus:outline-none"
+                      )}
+                      inputMode="numeric"
+                      step="1"
+                      autoFocus
+                    />
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditingReps(true);
+                        setRepsInput(String(reps));
+                        setTimeout(() => repsInputRef.current?.select(), 50);
+                      }}
+                      className="text-5xl font-bold text-white tabular-nums"
+                      aria-label={`回数 ${reps}回 タップして編集`}
+                    >
+                      {reps}
+                    </button>
                   )}
-                  inputMode="numeric"
-                  step="1"
-                  autoFocus
-                />
-              ) : (
-                <button
-                  onClick={() => {
-                    setEditingReps(true);
-                    setRepsInput(String(reps));
-                    setTimeout(() => repsInputRef.current?.select(), 50);
-                  }}
-                  className="text-5xl font-bold text-white tabular-nums"
-                  aria-label={`回数 ${reps}回 タップして編集`}
-                >
-                  {reps}
-                </button>
-              )}
-            </div>
+                </div>
 
-            {stepButton("+1", () => handleRepsChange(1))}
-            {stepButton("+5", () => handleRepsChange(5), "lg")}
-          </div>
-        </div>
+                {stepButton("+1", () => handleRepsChange(1))}
+                {stepButton("+5", () => handleRepsChange(5), "lg")}
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Action buttons */}
         <div className="space-y-2 pt-2">
-          {onApplyToRemaining && !isLastSet && (
+          {!isDuration && onApplyToRemaining && !isLastSet && (
             <Button
               variant="outline"
               fullWidth
@@ -256,7 +338,7 @@ export function WeightRepsPicker({
             <Button
               variant="primary"
               size="lg"
-              onClick={() => onComplete(weight, reps)}
+              onClick={() => isDuration ? onComplete(0, minutes) : onComplete(weight, reps)}
               className="flex-2"
             >
               セット完了

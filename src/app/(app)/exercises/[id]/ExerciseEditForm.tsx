@@ -14,6 +14,7 @@ interface ExerciseEditFormProps {
   currentCategory: MuscleCategory;
   isOneArm: boolean;
   defaultRestSeconds: number;
+  isDuration: boolean;
 }
 
 const REST_PRESETS = [
@@ -21,6 +22,7 @@ const REST_PRESETS = [
   { label: "1分", value: 60 },
   { label: "1分30秒", value: 90 },
   { label: "2分", value: 120 },
+  { label: "2分30秒", value: 150 },
   { label: "3分", value: 180 },
 ] as const;
 
@@ -44,10 +46,12 @@ export function ExerciseEditForm({
   currentCategory,
   isOneArm,
   defaultRestSeconds,
+  isDuration,
 }: ExerciseEditFormProps) {
   const router = useRouter();
   const [category, setCategory] = useState<MuscleCategory>(currentCategory);
   const [oneArm, setOneArm] = useState(isOneArm);
+  const [duration, setDuration] = useState(isDuration);
   const [restSeconds, setRestSeconds] = useState(defaultRestSeconds);
   const [restInput, setRestInput] = useState(String(defaultRestSeconds));
   const [isPending, startTransition] = useTransition();
@@ -76,7 +80,7 @@ export function ExerciseEditForm({
 
   const handleSave = () => {
     startTransition(async () => {
-      await saveExerciseMeta(exerciseId, category, oneArm, restSeconds);
+      await saveExerciseMeta(exerciseId, category, oneArm, restSeconds, duration);
       setSaved(true);
       setTimeout(() => router.push("/exercises"), 1000);
     });
@@ -204,6 +208,31 @@ export function ExerciseEditForm({
               style={{
                 backgroundColor: oneArm ? "#1C1C1E" : "#8E8E93",
                 left: oneArm ? "24px" : "4px",
+                transition: "left 0.15s ease-in-out, background-color 0.15s",
+              }}
+            />
+          </button>
+        </div>
+      </Card>
+
+      {/* Duration mode toggle */}
+      <Card>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="font-medium text-white">時間で記録</p>
+            <p className="text-xs text-[#8E8E93] mt-0.5">重量・回数ではなく、分数で記録します（有酸素など）</p>
+          </div>
+          <button
+            onClick={() => setDuration(!duration)}
+            aria-pressed={duration}
+            className="relative shrink-0 w-12 h-7 rounded-full overflow-hidden"
+            style={{ backgroundColor: duration ? "#ffffff" : "#3A3A3C", transition: "background-color 0.15s" }}
+          >
+            <span
+              className="absolute top-1 w-5 h-5 rounded-full shadow"
+              style={{
+                backgroundColor: duration ? "#1C1C1E" : "#8E8E93",
+                left: duration ? "24px" : "4px",
                 transition: "left 0.15s ease-in-out, background-color 0.15s",
               }}
             />

@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Card } from "@/components/ui/Card";
 import { formatRepsTarget } from "@/lib/parser";
 import type { ParsedWorkout, ParsedExercise } from "@/domain/types";
 
@@ -15,6 +13,16 @@ interface MenuPreviewProps {
   saving?: boolean;
   defaultDate?: string;
 }
+
+const MUSCLE_LABELS: Record<string, string> = {
+  chest: "胸", shoulder: "肩", back: "背", leg: "脚",
+  arm: "腕", ab: "腹", cardio: "有酸素",
+};
+
+const MUSCLE_COLORS: Record<string, string> = {
+  chest: "#EF4444", shoulder: "#F97316", back: "#A855F7",
+  leg: "#22C55E", arm: "#EAB308", ab: "#3B82F6", cardio: "#E5E7EB",
+};
 
 export function MenuPreview({
   workout,
@@ -62,13 +70,16 @@ export function MenuPreview({
     <div className="space-y-4">
       {/* Warnings */}
       {workout.warnings.length > 0 && (
-        <div className="rounded-xl bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-4">
-          <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300 mb-2">
+        <div
+          className="rounded-xl p-4"
+          style={{ backgroundColor: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.3)" }}
+        >
+          <p className="text-sm font-medium mb-2" style={{ color: "#EAB308" }}>
             ⚠️ 解析時の警告
           </p>
           <ul className="space-y-1">
             {workout.warnings.map((w, i) => (
-              <li key={i} className="text-xs text-yellow-700 dark:text-yellow-400">
+              <li key={i} className="text-xs" style={{ color: "#CA8A04" }}>
                 {w}
               </li>
             ))}
@@ -77,39 +88,71 @@ export function MenuPreview({
       )}
 
       {/* Date and Title */}
-      <Card>
-        <div className="space-y-3">
-          <Input
-            label="日付"
+      <div
+        className="rounded-xl p-4 space-y-3"
+        style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
+      >
+        <div>
+          <label className="text-xs block mb-1" style={{ color: "#8E8E93" }}>日付</label>
+          <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-          />
-          <Input
-            label="タイトル"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+            style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.12)" }}
           />
         </div>
-      </Card>
+        <div>
+          <label className="text-xs block mb-1" style={{ color: "#8E8E93" }}>タイトル</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+            style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.12)" }}
+          />
+        </div>
+      </div>
 
       {/* Exercises */}
       <div className="space-y-3">
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 px-1">
+        <p className="text-sm font-medium px-1" style={{ color: "#FFFFFF" }}>
           種目（{exercises.length}件）
         </p>
 
         {exercises.map((ex, i) => (
-          <Card key={i} className="space-y-3">
+          <div
+            key={i}
+            className="rounded-xl p-4 space-y-3"
+            style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            {/* Name + category + sort */}
             <div className="flex items-center justify-between gap-2">
-              <h4 className="font-medium text-gray-900 dark:text-gray-100 truncate flex-1">
-                {ex.name}
-              </h4>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  {ex.muscleCategory && (
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
+                      style={{
+                        backgroundColor: `${MUSCLE_COLORS[ex.muscleCategory] ?? "#8E8E93"}22`,
+                        color: MUSCLE_COLORS[ex.muscleCategory] ?? "#8E8E93",
+                        border: `1px solid ${MUSCLE_COLORS[ex.muscleCategory] ?? "#8E8E93"}44`,
+                      }}
+                    >
+                      {MUSCLE_LABELS[ex.muscleCategory] ?? ex.muscleCategory}
+                    </span>
+                  )}
+                  <span className="font-medium truncate" style={{ color: "#FFFFFF" }}>
+                    {ex.name}
+                  </span>
+                </div>
+              </div>
               <div className="flex gap-1 shrink-0">
                 <button
                   onClick={() => moveUp(i)}
                   disabled={i === 0}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                  className="p-1.5 rounded-lg disabled:opacity-30"
+                  style={{ color: "#8E8E93" }}
                   aria-label="上に移動"
                 >
                   ↑
@@ -117,7 +160,8 @@ export function MenuPreview({
                 <button
                   onClick={() => moveDown(i)}
                   disabled={i === exercises.length - 1}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                  className="p-1.5 rounded-lg disabled:opacity-30"
+                  style={{ color: "#8E8E93" }}
                   aria-label="下に移動"
                 >
                   ↓
@@ -127,7 +171,7 @@ export function MenuPreview({
 
             <div className="grid grid-cols-3 gap-2 text-sm">
               <div>
-                <span className="text-gray-500 dark:text-gray-400 text-xs block mb-1">セット数</span>
+                <span className="text-xs block mb-1" style={{ color: "#8E8E93" }}>セット数</span>
                 <input
                   type="number"
                   value={ex.sets}
@@ -135,43 +179,50 @@ export function MenuPreview({
                   onChange={(e) =>
                     updateExercise(i, "sets", parseInt(e.target.value, 10) || 1)
                   }
-                  className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-center bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  className="w-full rounded-lg px-2 py-1 text-center outline-none"
+                  style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.12)" }}
                 />
               </div>
               <div>
-                <span className="text-gray-500 dark:text-gray-400 text-xs block mb-1">目標回数</span>
+                <span className="text-xs block mb-1" style={{ color: "#8E8E93" }}>
+                  {ex.isDuration ? "時間（分）" : "目標回数"}
+                </span>
                 <input
                   type="text"
-                  value={formatRepsTarget(ex.repsTarget)}
+                  value={ex.isDuration
+                    ? `${ex.repsTarget.min}分`
+                    : formatRepsTarget(ex.repsTarget)}
                   readOnly
-                  className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-center bg-gray-50 dark:bg-gray-800 text-gray-500 text-xs"
+                  className="w-full rounded-lg px-2 py-1 text-center text-xs outline-none"
+                  style={{ backgroundColor: "#1C1C1E", color: "#8E8E93", border: "1px solid rgba(255,255,255,0.08)" }}
                 />
               </div>
               <div>
-                <span className="text-gray-500 dark:text-gray-400 text-xs block mb-1">インターバル</span>
+                <span className="text-xs block mb-1" style={{ color: "#8E8E93" }}>インターバル</span>
                 <input
                   type="number"
                   value={ex.restSeconds}
-                  min={1}
+                  min={0}
                   onChange={(e) =>
-                    updateExercise(i, "restSeconds", parseInt(e.target.value, 10) || 90)
+                    updateExercise(i, "restSeconds", parseInt(e.target.value, 10) || 0)
                   }
-                  className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-center bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  className="w-full rounded-lg px-2 py-1 text-center outline-none"
+                  style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.12)" }}
                 />
               </div>
             </div>
 
             {ex.notes && (
-              <p className="text-xs text-blue-600 dark:text-blue-400">
+              <p className="text-xs" style={{ color: "#64B5F6" }}>
                 ✦ {ex.notes}
               </p>
             )}
-          </Card>
+          </div>
         ))}
       </div>
 
       {exercises.length === 0 && (
-        <div className="text-center py-8 text-gray-400">
+        <div className="text-center py-8" style={{ color: "#8E8E93" }}>
           解析できた種目がありません。テキストを確認してください。
         </div>
       )}

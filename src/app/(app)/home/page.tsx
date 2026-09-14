@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
-import { getCalendarData } from "./actions";
+import { getCalendarDataRange } from "./actions";
 import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar";
 import { CopyButton } from "@/components/ui/CopyButton";
 import {
@@ -14,11 +14,20 @@ import {
 
 // ---- Types ----
 
+interface AchievementSet {
+  setNumber: number;
+  weight: number;
+  reps: number;
+  side: string | null;
+}
+
 interface AchievementExercise {
   name: string;
   category: MuscleCategory;
   completedSets: number;
   totalVolume: number;
+  sets: AchievementSet[];
+  isDuration: boolean;
 }
 
 // ---- Helpers ----
@@ -217,9 +226,10 @@ async function getTodayAchievement(
       .order("sort_order"),
     supabase
       .from("workout_sets")
-      .select("session_exercise_id, weight, reps")
+      .select("session_exercise_id, set_number, weight, reps, side")
       .in("session_id", sessionIds)
-      .eq("status", "completed"),
+      .eq("status", "completed")
+      .order("set_number"),
   ]);
 
   const names = [
@@ -229,27 +239,28 @@ async function getTodayAchievement(
     names.length > 0
       ? await supabase
           .from("exercises")
-          .select("name, muscle_category")
+          .select("name, muscle_category, is_duration")
           .eq("user_id", userId)
           .in("name", names)
       : { data: [] };
 
   const categoryMap: Record<string, MuscleCategory> = {};
+  const durationMap: Record<string, boolean> = {};
   for (const ex of masterExercises ?? []) {
     if (ex.muscle_category)
       categoryMap[ex.name] = ex.muscle_category as MuscleCategory;
+    durationMap[ex.name] = Boolean(ex.is_duration);
   }
 
-  const setsByExId: Record<
-    string,
-    { weight: number; reps: number }[]
-  > = {};
+  const setsByExId: Record<string, AchievementSet[]> = {};
   for (const s of sets ?? []) {
     if (!setsByExId[s.session_exercise_id])
       setsByExId[s.session_exercise_id] = [];
     setsByExId[s.session_exercise_id].push({
+      setNumber: Number(s.set_number),
       weight: Number(s.weight),
       reps: Number(s.reps),
+      side: (s.side as string | null) ?? null,
     });
   }
 
@@ -265,6 +276,8 @@ async function getTodayAchievement(
         totalVolume: Math.round(
           exSets.reduce((acc, s) => acc + s.weight * s.reps, 0)
         ),
+        sets: exSets,
+        isDuration: durationMap[ex.exercise_name] ?? false,
       };
     })
     .filter(Boolean) as AchievementExercise[];
@@ -274,22 +287,52 @@ async function getTodayAchievement(
 
 function AchievementList({ exercises }: { exercises: AchievementExercise[] }) {
   if (exercises.length === 0) return null;
+
+  // カテゴリ別にグループ化
+  const byCategory: Record<string, AchievementExercise[]> = {};
+  for (const ex of exercises) {
+    if (!byCategory[ex.category]) byCategory[ex.category] = [];
+    byCategory[ex.category].push(ex);
+  }
+  const cats = CATEGORY_ORDER.filter((c) => byCategory[c]?.length > 0);
+
   return (
-    <ul className="space-y-1.5 mt-3">
-      {exercises.map((ex, i) => (
-        <li key={i} className="flex items-center gap-2 text-sm">
-          <span
-            className="w-2 h-2 rounded-full shrink-0"
-            style={{ backgroundColor: CATEGORY_COLORS[ex.category] }}
-          />
-          <span className="text-white flex-1 truncate">{ex.name}</span>
-          <span className="text-[#8E8E93] text-xs shrink-0">
-            {ex.completedSets}セット
-            {ex.totalVolume > 0 && ` (${ex.totalVolume.toLocaleString()}kg)`}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-3 mt-3">
+      {cats.map((cat) => {
+        const exList = byCategory[cat];
+        const catSets = exList.reduce((acc, ex) => acc + ex.completedSets, 0);
+        const catVol = exList.reduce((acc, ex) => acc + ex.totalVolume, 0);
+        return (
+          <div key={cat}>
+            {/* カテゴリヘッダー */}
+            <div className="flex items-center gap-2 mb-1.5">
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: CATEGORY_COLORS[cat] }}
+              />
+              <span className="text-xs font-semibold" style={{ color: CATEGORY_COLORS[cat] }}>
+                {CATEGORY_LABELS[cat]}
+              </span>
+              <span className="text-xs text-[#8E8E93]">
+                {catSets}セット{catVol > 0 ? ` / ${catVol.toLocaleString()}kg` : ""}
+              </span>
+            </div>
+            {/* 種目リスト */}
+            <ul className="space-y-1 pl-4">
+              {exList.map((ex, i) => (
+                <li key={i} className="flex items-center gap-2 text-sm">
+                  <span className="text-white flex-1 truncate">{ex.name}</span>
+                  <span className="text-[#8E8E93] text-xs shrink-0">
+                    {ex.completedSets}セット
+                    {ex.totalVolume > 0 && ` / ${ex.totalVolume.toLocaleString()}kg`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -310,7 +353,7 @@ export default async function HomePage() {
   const [{ todayStr, sessions, streakSessions, firstActiveSessionId, activeSessionIds, hasExercises }, calendarData] =
     await Promise.all([
       getTodayData(user.id),
-      getCalendarData(jstYear, jstMonth),
+      getCalendarDataRange(jstYear, jstMonth, 3),
     ]);
 
   const hasAnySessions = sessions.length > 0;
@@ -389,16 +432,31 @@ export default async function HomePage() {
       ) : allComplete ? (
         /* 全完了 → お疲れ様 + 今日の実績 */
         (() => {
+          const achievementByCategory: Record<string, AchievementExercise[]> = {};
+          for (const ex of achievement) {
+            if (!achievementByCategory[ex.category]) achievementByCategory[ex.category] = [];
+            achievementByCategory[ex.category].push(ex);
+          }
+          const achievementCats = CATEGORY_ORDER.filter((c) => achievementByCategory[c]?.length > 0);
           const copyText = [
             `📋 トレーニング記録｜${formatJapaneseDate(todayStr)}`,
             achievementTitle,
             "",
-            ...achievement.map(
-              (ex) =>
-                `・${ex.name}（${CATEGORY_LABELS[ex.category]}）: ${ex.completedSets}セット${
+            ...achievementCats.flatMap((cat) => [
+              `【${CATEGORY_LABELS[cat]}】`,
+              ...achievementByCategory[cat].flatMap((ex) => [
+                `・${ex.name}: ${ex.completedSets}セット${
                   ex.totalVolume > 0 ? ` / ${ex.totalVolume.toLocaleString()}kg` : ""
-                }`
-            ),
+                }`,
+                ...ex.sets.map((s) => {
+                  const sideLabel = s.side ? `(${s.side}) ` : "";
+                  const valueStr = ex.isDuration && s.weight === 0 && s.reps > 0
+                    ? `${s.reps}分`
+                    : `${s.weight}kg × ${s.reps}回`;
+                  return `  ${s.setNumber}${sideLabel}: ${valueStr}`;
+                }),
+              ]),
+            ]),
           ].join("\n");
           return (
             <div className="space-y-3">
@@ -464,6 +522,8 @@ export default async function HomePage() {
           initialYear={jstYear}
           initialMonth={jstMonth}
           initialData={calendarData}
+          oldestYear={new Date(jstYear, jstMonth - 3, 1).getFullYear()}
+          oldestMonth={new Date(jstYear, jstMonth - 3, 1).getMonth() + 1}
         />
       </div>
     </div>

@@ -125,6 +125,31 @@ export function parseExerciseLine(line: string): ParsedExercise | null {
   const sets = parseInt(setsNorm, 10);
   if (!sets || sets <= 0) return null;
 
+  // duration (時間記録: "duration: 20" or "duration: 20分")
+  const durationRaw = fields["duration"] ?? fields["time"] ?? null;
+  if (durationRaw) {
+    // Parse minutes from values like "20", "20分", "20分30秒"
+    const durationNorm = normalise(durationRaw);
+    const minMatch = durationNorm.match(/^(\d+)(?:分)?/);
+    if (minMatch) {
+      const durationMins = parseInt(minMatch[1], 10);
+      if (durationMins > 0) {
+        const restRaw = fields["rest"] ?? fields["rest_seconds"] ?? "";
+        const parsedRest = parseRestSeconds(restRaw);
+        const restSeconds = parsedRest !== null && parsedRest > 0 ? parsedRest : 0;
+        const noteRaw = fields["note"] ?? fields["notes"] ?? null;
+        return {
+          name,
+          sets,
+          repsTarget: { min: durationMins, max: durationMins },
+          restSeconds,
+          notes: noteRaw ? noteRaw.trim() : null,
+          isDuration: true,
+        };
+      }
+    }
+  }
+
   // reps
   const repsRaw = fields["reps"] ?? "";
   const repsTarget = parseRepsTarget(repsRaw);
@@ -146,12 +171,28 @@ export function parseExerciseLine(line: string): ParsedExercise | null {
   const noteRaw = fields["note"] ?? fields["notes"] ?? null;
   const notes = noteRaw ? noteRaw.trim() : null;
 
+  // muscle category
+  const muscleRaw = fields["muscle"] ?? fields["category"] ?? null;
+  const MUSCLE_MAP: Record<string, string> = {
+    胸: "chest", chest: "chest",
+    肩: "shoulder", shoulder: "shoulder",
+    背: "back", 背中: "back", back: "back",
+    脚: "leg", 下半身: "leg", leg: "leg",
+    腕: "arm", arm: "arm",
+    腹: "ab", 腹筋: "ab", ab: "ab",
+    有酸素: "cardio", カーディオ: "cardio", cardio: "cardio",
+  };
+  const muscleCategory = muscleRaw
+    ? (MUSCLE_MAP[muscleRaw.trim()] ?? null)
+    : null;
+
   const exercise: ParsedExercise = {
     name,
     sets,
     repsTarget,
     restSeconds,
     notes,
+    muscleCategory,
   };
 
   // Attach warning marker for caller (warn even when rest is missing)

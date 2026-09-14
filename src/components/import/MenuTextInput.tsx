@@ -11,20 +11,30 @@ interface MenuTextInputProps {
 
 const CHATGPT_PROMPT = `以下のフォーマットでトレーニングメニューを出力してください。他のテキストは一切含めないでください。
 
+【部位カテゴリの対応】
+胸=chest / 肩=shoulder / 背中=back / 脚=leg / 腕=arm / 腹=ab / 有酸素=cardio
+
+【フォーマット】
+・筋トレ種目：
+exercise: 種目名 | muscle: 部位 | sets: セット数 | reps: 回数範囲（例：8-10） | rest: インターバル秒数
+
+・有酸素・時間記録種目：
+exercise: 種目名 | muscle: cardio | sets: 1 | duration: 分数 | rest: 0
+
 [WORKOUT]
 date: YYYY-MM-DD
 title: 部位名（例：胸・背中）
-exercise: 種目名 | sets: セット数 | reps: 回数範囲（例：8-10） | rest: インターバル秒数
-exercise: 種目名 | sets: セット数 | reps: 回数範囲 | rest: インターバル秒数
+exercise: 種目名 | muscle: 部位 | sets: セット数 | reps: 回数範囲 | rest: インターバル秒数
 [/WORKOUT]
 
 例：
 [WORKOUT]
 date: 2026-09-20
-title: 胸・背中
-exercise: ベンチプレス | sets: 4 | reps: 6-8 | rest: 150
-exercise: インクラインダンベルプレス | sets: 3 | reps: 8-10 | rest: 120
-exercise: ラットプルダウン | sets: 3 | reps: 10-12 | rest: 90
+title: 胸・有酸素
+exercise: ベンチプレス | muscle: chest | sets: 4 | reps: 6-8 | rest: 150
+exercise: インクラインダンベルプレス | muscle: chest | sets: 3 | reps: 8-10 | rest: 120
+exercise: ダンベルフライ | muscle: chest | sets: 3 | reps: 12-15 | rest: 90
+exercise: バイク | muscle: cardio | sets: 1 | duration: 20 | rest: 0
 [/WORKOUT]`;
 
 export function MenuTextInput({ onParsed }: MenuTextInputProps) {

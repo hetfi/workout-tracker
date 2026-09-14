@@ -78,9 +78,11 @@ export async function startTrainingFromPlan(planId: string) {
   redirect(`/session/${session.id}`);
 }
 
-export async function getCalendarData(
-  year: number,
-  month: number
+/** 過去 N ヶ月分（当月含む）のカレンダーデータを一括取得する */
+export async function getCalendarDataRange(
+  toYear: number,
+  toMonth: number,
+  monthCount: number = 6
 ): Promise<Record<string, MuscleCategory[]>> {
   const supabase = await createClient();
   const {
@@ -88,9 +90,11 @@ export async function getCalendarData(
   } = await supabase.auth.getUser();
   if (!user) return {};
 
-  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-  const lastDay = new Date(year, month, 0).getDate();
-  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  // 開始月を計算（monthCount ヶ月前の1日）
+  const fromDate = new Date(toYear, toMonth - monthCount, 1);
+  const startDate = `${fromDate.getFullYear()}-${String(fromDate.getMonth() + 1).padStart(2, '0')}-01`;
+  const lastDay = new Date(toYear, toMonth, 0).getDate();
+  const endDate = `${toYear}-${String(toMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
   const { data: sessions } = await supabase
     .from("workout_sessions")
@@ -167,4 +171,12 @@ export async function getCalendarData(
   }
 
   return result;
+}
+
+/** 後方互換：単月取得（既存コードからの呼び出し用） */
+export async function getCalendarData(
+  year: number,
+  month: number
+): Promise<Record<string, MuscleCategory[]>> {
+  return getCalendarDataRange(year, month, 1);
 }

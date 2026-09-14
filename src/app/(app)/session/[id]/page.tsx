@@ -30,7 +30,7 @@ import {
   loadDraftTimer,
   deleteDraftTimer,
 } from "@/lib/storage/draft";
-import { getExerciseCategoryMap } from "@/repositories/exercises";
+import { getExerciseCategoryMap, getExerciseDurationMap } from "@/repositories/exercises";
 import { getUserSettings } from "@/repositories/userSettings";
 import { getIntervalEnabled } from "@/lib/storage/localSettings";
 import { buildExercisePreset } from "@/lib/preset";
@@ -41,6 +41,7 @@ import {
 import {
   classifyExercise,
   CATEGORY_LABELS,
+  CATEGORY_COLORS,
   CATEGORY_ORDER,
   type MuscleCategory,
 } from "@/lib/muscleCategory";
@@ -96,7 +97,10 @@ function buildSessionCopyText(
       lines.push(`・${ex.exerciseName}: ${completedSets.length}セット${vol > 0 ? ` / ${vol.toLocaleString()}kg` : ""}`);
       for (const s of completedSets) {
         const side = s.side ? `(${s.side}) ` : "";
-        lines.push(`  ${s.setNumber}${side}: ${s.weight}kg × ${s.reps}回`);
+        const valueStr = ex.isDuration && s.weight === 0 && s.reps > 0
+          ? `${s.reps}分`
+          : `${s.weight}kg × ${s.reps}回`;
+        lines.push(`  ${s.setNumber}${side}: ${valueStr}`);
       }
     }
     lines.push("");
@@ -138,6 +142,7 @@ export default function SessionPage({
           sessionData,
           exData,
           masterMap,
+          durationMap,
           setsData,
           dbTimer,
           localTimer,
@@ -147,6 +152,7 @@ export default function SessionPage({
           getSessionById(sessionId),
           getSessionExercises(sessionId),
           getExerciseCategoryMap(),
+          getExerciseDurationMap(),
           getSessionSets(sessionId),
           getRunningTimer(sessionId),
           loadDraftTimer(sessionId),
@@ -161,11 +167,17 @@ export default function SessionPage({
         }
 
         setSession(sessionData);
-        setExercises(exData);
+
+        // isDuration をマスターから上書き
+        const enrichedExData = exData.map((ex) => ({
+          ...ex,
+          isDuration: durationMap[ex.exerciseName] ?? false,
+        }));
+        setExercises(enrichedExData);
 
         // 部位カテゴリマップを構築
         const catMap: Record<string, MuscleCategory> = {};
-        for (const ex of exData) {
+        for (const ex of enrichedExData) {
           catMap[ex.id] =
             (masterMap[ex.exerciseName] as MuscleCategory | undefined) ??
             classifyExercise(ex.exerciseName);
@@ -182,7 +194,7 @@ export default function SessionPage({
 
         // Group sets by sessionExerciseId
         const grouped: Record<string, WorkoutSet[]> = {};
-        for (const ex of exData) {
+        for (const ex of enrichedExData) {
           grouped[ex.id] = [];
         }
         for (const s of setsData) {
@@ -193,7 +205,7 @@ export default function SessionPage({
         }
 
         // プリセットが必要な種目を一括取得（N+1 → 1 クエリ）
-        const exercisesNeedingPresets = exData.filter(
+        const exercisesNeedingPresets = enrichedExData.filter(
           (ex) => grouped[ex.id].length === 0
         );
         const prevDataMap = await getPreviousSessionDataBatch(exercisesNeedingPresets);
@@ -660,6 +672,22 @@ export default function SessionPage({
     .flat()
     .filter((s) => s.status === "completed").length;
 
+  // 部位カテゴリ別の進捗を集計
+  const categoryProgress: Record<string, { completed: number; total: number }> = {};
+  for (const ex of exercises) {
+    const cat = (categoriesMap[ex.id] ?? classifyExercise(ex.exerciseName)) as string;
+    const exSets = setsMap[ex.id] ?? [];
+    const isOneArm = ex.isOneArm;
+    const total = isOneArm ? ex.plannedSets * 2 : exSets.length;
+    const completed = isOneArm
+      ? exSets.filter((s) => s.side && s.status === "completed").length
+      : exSets.filter((s) => s.status === "completed").length;
+    if (total === 0) continue;
+    if (!categoryProgress[cat]) categoryProgress[cat] = { completed: 0, total: 0 };
+    categoryProgress[cat].completed += completed;
+    categoryProgress[cat].total += total;
+  }
+
   return (
     <div className="py-6 space-y-4">
       {/* Timer bar */}
@@ -701,15 +729,40 @@ export default function SessionPage({
         <SaveStatusIndicator status={saveStatus} />
       </div>
 
-      {/* Progress bar */}
-      <div className="w-full h-1.5 bg-white/[0.1] rounded-full overflow-hidden">
-        <div
-          className="h-full bg-[#CAFF4D] rounded-full transition-all duration-300"
-          style={{
-            width:
-              totalSets > 0 ? `${(completedSets / totalSets) * 100}%` : "0%",
-          }}
-        />
+      {/* Per-category progress bars */}
+      <div className="space-y-2">
+        {CATEGORY_ORDER.filter((cat) => categoryProgress[cat]).map((cat) => {
+          const { completed, total } = categoryProgress[cat];
+          const color = CATEGORY_COLORS[cat as MuscleCategory];
+          return (
+            <div key={cat} className="flex items-center gap-3">
+              <span
+                className="text-xs font-semibold w-12 shrink-0 whitespace-nowrap"
+                style={{ color }}
+              >
+                {CATEGORY_LABELS[cat as MuscleCategory]}
+              </span>
+              <div
+                className="flex-1 h-1.5 rounded-full overflow-hidden"
+                style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+              >
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${total > 0 ? (completed / total) * 100 : 0}%`,
+                    backgroundColor: color,
+                  }}
+                />
+              </div>
+              <span
+                className="text-xs w-10 text-right"
+                style={{ color: "#8E8E93" }}
+              >
+                {completed}/{total}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Exercises */}

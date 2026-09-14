@@ -23,6 +23,7 @@ function toExercise(row: Record<string, unknown>): Exercise {
     deletedAt: (row.deleted_at as string) ?? null,
     muscleCategory: (row.muscle_category as string) ?? null,
     isOneArm: Boolean(row.is_one_arm),
+    isDuration: Boolean(row.is_duration),
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -230,6 +231,24 @@ export async function getExerciseCategoryMap(): Promise<Record<string, string>> 
 export function invalidateCategoryMapCache(): void {
   _categoryMapCache = null;
   _categoryMapCachedAt = 0;
+}
+
+/**
+ * 種目名 → isDuration のマップを返す（「時間記録」フラグ参照用）。
+ */
+export async function getExerciseDurationMap(): Promise<Record<string, boolean>> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("exercises")
+    .select("name, is_duration")
+    .is("deleted_at", null);
+  const map: Record<string, boolean> = {};
+  for (const row of data ?? []) {
+    if (row.is_duration) {
+      map[row.name as string] = true;
+    }
+  }
+  return map;
 }
 
 /**

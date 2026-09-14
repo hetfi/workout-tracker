@@ -9,9 +9,11 @@ interface SetRowProps {
   onTap: () => void;
   /** Called when delete button is tapped */
   onDelete?: () => void;
+  /** When true, display reps as minutes instead of weight×reps */
+  isDuration?: boolean;
 }
 
-export function SetRow({ set, onTap, onDelete }: SetRowProps) {
+export function SetRow({ set, onTap, onDelete, isDuration = false }: SetRowProps) {
   const isCompleted = set.status === "completed";
   const isSkipped = set.status === "skipped";
 
@@ -31,7 +33,11 @@ export function SetRow({ set, onTap, onDelete }: SetRowProps) {
             ? "bg-white/[0.04] border border-white/[0.08] opacity-50"
             : "bg-white/[0.06] border border-white/[0.08] active:bg-white/[0.1]"
         )}
-        aria-label={`${set.setNumber}セット目: 重量${set.weight}kg 回数${set.reps}回 ${isCompleted ? "完了" : "未完了"}`}
+        aria-label={
+          isDuration
+            ? `${set.setNumber}セット目: ${set.reps}分 ${isCompleted ? "完了" : "未完了"}`
+            : `${set.setNumber}セット目: 重量${set.weight}kg 回数${set.reps}回 ${isCompleted ? "完了" : "未完了"}`
+        }
       >
         {/* Set number */}
         <span
@@ -45,25 +51,39 @@ export function SetRow({ set, onTap, onDelete }: SetRowProps) {
 
         {/* Values */}
         <div className="flex-1 flex items-baseline gap-2">
-          <span
-            className={cn(
-              "text-xl font-bold tabular-nums",
-              isCompleted ? "text-[#CAFF4D]" : "text-white"
-            )}
-          >
-            {set.weight}
-            <span className="text-sm font-normal ml-0.5">kg</span>
-          </span>
-          <span className="text-[#8E8E93]">×</span>
-          <span
-            className={cn(
-              "text-xl font-bold tabular-nums",
-              isCompleted ? "text-[#CAFF4D]" : "text-white"
-            )}
-          >
-            {set.reps}
-            <span className="text-sm font-normal ml-0.5">回</span>
-          </span>
+          {isDuration ? (
+            <span
+              className={cn(
+                "text-xl font-bold tabular-nums",
+                isCompleted ? "text-[#CAFF4D]" : "text-white"
+              )}
+            >
+              {set.reps > 0 ? set.reps : "—"}
+              <span className="text-sm font-normal ml-0.5">分</span>
+            </span>
+          ) : (
+            <>
+              <span
+                className={cn(
+                  "text-xl font-bold tabular-nums",
+                  isCompleted ? "text-[#CAFF4D]" : "text-white"
+                )}
+              >
+                {set.weight}
+                <span className="text-sm font-normal ml-0.5">kg</span>
+              </span>
+              <span className="text-[#8E8E93]">×</span>
+              <span
+                className={cn(
+                  "text-xl font-bold tabular-nums",
+                  isCompleted ? "text-[#CAFF4D]" : "text-white"
+                )}
+              >
+                {set.reps}
+                <span className="text-sm font-normal ml-0.5">回</span>
+              </span>
+            </>
+          )}
         </div>
 
         {/* Status badge */}

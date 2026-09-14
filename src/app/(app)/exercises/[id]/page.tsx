@@ -18,7 +18,7 @@ export default async function ExerciseEditPage({
 
   const { data: exercise } = await supabase
     .from("exercises")
-    .select("id, name, muscle_category, is_one_arm, default_rest_seconds")
+    .select("id, name, muscle_category, is_one_arm, default_rest_seconds, is_duration")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -33,16 +33,17 @@ export default async function ExerciseEditPage({
       <div className="flex items-center gap-3">
         <Link
           href="/exercises"
-          className="text-blue-600 dark:text-blue-400 text-sm font-medium"
+          className="text-sm font-medium"
+          style={{ color: "#CAFF4D" }}
         >
           ← 戻る
         </Link>
       </div>
       <div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+        <h1 className="text-xl font-bold" style={{ color: "#FFFFFF" }}>
           {exercise.name}
         </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        <p className="text-sm mt-1" style={{ color: "#8E8E93" }}>
           種目の設定を編集
         </p>
       </div>
@@ -52,6 +53,7 @@ export default async function ExerciseEditPage({
         currentCategory={currentCategory}
         isOneArm={exercise.is_one_arm ?? false}
         defaultRestSeconds={exercise.default_rest_seconds ?? 90}
+        isDuration={exercise.is_duration ?? false}
       />
     </div>
   );

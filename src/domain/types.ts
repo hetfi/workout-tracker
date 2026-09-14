@@ -56,6 +56,8 @@ export interface Exercise extends BaseRecord {
   muscleCategory: string | null;
   /** Whether this is a unilateral (one-arm/one-leg) exercise */
   isOneArm: boolean;
+  /** When true, sets are recorded as duration (minutes) instead of weight × reps */
+  isDuration: boolean;
 }
 
 export interface ExerciseAlias extends BaseRecord {
@@ -132,6 +134,11 @@ export interface WorkoutSessionExercise extends BaseRecord {
   notes: string | null;
   /** Whether this is recorded as a unilateral (one-arm) exercise */
   isOneArm: boolean;
+  /**
+   * When true, sets are recorded as duration (minutes) instead of weight × reps.
+   * Stored in DB: weight=0, reps=duration_minutes.
+   */
+  isDuration: boolean;
 }
 
 export type SetStatus = "pending" | "completed" | "skipped";
@@ -194,6 +201,10 @@ export interface ParsedExercise {
   /** seconds */
   restSeconds: number;
   notes: string | null;
+  /** When true, repsTarget stores duration in minutes; weight is always 0 */
+  isDuration?: boolean;
+  /** Muscle category from ChatGPT output (胸/肩/背/脚/腕/腹/有酸素) */
+  muscleCategory?: string | null;
 }
 
 export interface ParsedWorkout {

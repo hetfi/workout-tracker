@@ -45,6 +45,7 @@ function toSessionExercise(row: Record<string, unknown>): WorkoutSessionExercise
     skipped: Boolean(row.skipped),
     notes: (row.notes as string) ?? null,
     isOneArm: Boolean(row.is_one_arm),
+    isDuration: Boolean(row.is_duration),
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };

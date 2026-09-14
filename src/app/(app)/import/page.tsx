@@ -49,11 +49,7 @@ function ImportPageInner() {
 
       await saveParsedWorkout(workout, raw);
       showToast("メニューを登録しました", "success");
-      if (dateParam) {
-        router.push(`/day/${dateParam}`);
-      } else {
-        router.push("/home");
-      }
+      router.push("/home");
     } catch (err) {
       console.error(err);
       showToast("登録に失敗しました。もう一度お試しください。", "error");

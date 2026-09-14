@@ -88,9 +88,10 @@ export default async function DayPage({ params }: PageProps) {
   // 3. 完了セット（重量・回数含む）
   const { data: completedSets } = await supabase
     .from("workout_sets")
-    .select("session_exercise_id, session_id, weight, reps")
+    .select("session_exercise_id, session_id, set_number, weight, reps, side")
     .in("session_id", sessionIds)
-    .eq("status", "completed");
+    .eq("status", "completed")
+    .order("set_number");
 
   // 4. exercises master でカテゴリ取得
   const allExerciseNames = [
@@ -100,27 +101,32 @@ export default async function DayPage({ params }: PageProps) {
     allExerciseNames.length > 0
       ? await supabase
           .from("exercises")
-          .select("name, muscle_category")
+          .select("name, muscle_category, is_duration")
           .eq("user_id", user.id)
           .in("name", allExerciseNames)
       : { data: [] };
 
   const categoryMap: Record<string, MuscleCategory> = {};
+  const durationMap: Record<string, boolean> = {};
   for (const ex of masterExercises ?? []) {
     if (ex.muscle_category)
       categoryMap[ex.name] = ex.muscle_category as MuscleCategory;
+    durationMap[ex.name] = Boolean(ex.is_duration);
   }
   const getCategory = (name: string): MuscleCategory =>
     categoryMap[name] ?? classifyExercise(name);
 
   // 5. 種目ごとの完了セット数・総量を集計
-  const setsByExId: Record<string, { weight: number; reps: number }[]> = {};
+  interface SetRecord { setNumber: number; weight: number; reps: number; side: string | null }
+  const setsByExId: Record<string, SetRecord[]> = {};
   for (const s of completedSets ?? []) {
     if (!setsByExId[s.session_exercise_id])
       setsByExId[s.session_exercise_id] = [];
     setsByExId[s.session_exercise_id].push({
+      setNumber: Number(s.set_number),
       weight: Number(s.weight),
       reps: Number(s.reps),
+      side: (s.side as string | null) ?? null,
     });
   }
 
@@ -130,6 +136,8 @@ export default async function DayPage({ params }: PageProps) {
     category: MuscleCategory;
     completedSets: number;
     totalVolume: number;
+    sets: SetRecord[];
+    isDuration: boolean;
   }
   const mergedExercises: MergedExercise[] = [];
   const seenNames = new Set<string>();
@@ -147,6 +155,7 @@ export default async function DayPage({ params }: PageProps) {
         existing.totalVolume += Math.round(
           exSets.reduce((acc, s) => acc + s.weight * s.reps, 0)
         );
+        existing.sets.push(...exSets);
       }
     } else {
       seenNames.add(ex.exercise_name);
@@ -157,6 +166,8 @@ export default async function DayPage({ params }: PageProps) {
         totalVolume: Math.round(
           exSets.reduce((acc, s) => acc + s.weight * s.reps, 0)
         ),
+        sets: [...exSets],
+        isDuration: durationMap[ex.exercise_name] ?? false,
       });
     }
   }
@@ -202,19 +213,25 @@ export default async function DayPage({ params }: PageProps) {
         }
         const cats = CATEGORY_ORDER.filter((c) => byCategory[c]?.length > 0);
 
-        // コピー用テキスト
+        // コピー用テキスト（各セットの詳細を含む）
         const copyText = [
           `📋 トレーニング記録｜${formatJapaneseDate(date)}`,
           title,
           "",
           ...cats.flatMap((cat) => [
             `【${CATEGORY_LABELS[cat]}】`,
-            ...byCategory[cat].map(
-              (ex) =>
-                `・${ex.name}: ${ex.completedSets}セット${
-                  ex.totalVolume > 0 ? ` / ${ex.totalVolume.toLocaleString()}kg` : ""
-                }`
-            ),
+            ...byCategory[cat].flatMap((ex) => [
+              `・${ex.name}: ${ex.completedSets}セット${
+                ex.totalVolume > 0 ? ` / ${ex.totalVolume.toLocaleString()}kg` : ""
+              }`,
+              ...ex.sets.map((s) => {
+                const sideLabel = s.side ? `(${s.side}) ` : "";
+                const valueStr = ex.isDuration && s.weight === 0 && s.reps > 0
+                  ? `${s.reps}分`
+                  : `${s.weight}kg × ${s.reps}回`;
+                return `  ${s.setNumber}${sideLabel}: ${valueStr}`;
+              }),
+            ]),
           ]),
         ].join("\n");
 

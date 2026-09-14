@@ -16,7 +16,7 @@ import {
   deleteSessionExercise,
   deleteWorkoutSet,
 } from "@/repositories/workoutSessions";
-import { getExerciseCategoryMap } from "@/repositories/exercises";
+import { getExerciseCategoryMap, getExerciseDurationMap } from "@/repositories/exercises";
 import { createTimer } from "@/repositories/restTimers";
 import { getUserSettings } from "@/repositories/userSettings";
 import {
@@ -81,19 +81,25 @@ export function TodayView({
     const load = async () => {
       setLoading(true);
       try {
-        // 並列で全データを一括取得（N*2+2 逐次 → 4 並列）
-        const [allExercises, allSets, masterMap, userSettings] = await Promise.all([
+        // 並列で全データを一括取得
+        const [allExercises, allSets, masterMap, durationMap, userSettings] = await Promise.all([
           getSessionExercisesForSessions(sessionIds),
           getSessionSetsForSessions(sessionIds),
           getExerciseCategoryMap(),
+          getExerciseDurationMap(),
           getUserSettings(),
         ]);
 
-        setExercises(allExercises);
+        // isDuration をマスターから上書き
+        const enrichedExercises = allExercises.map((ex) => ({
+          ...ex,
+          isDuration: durationMap[ex.exerciseName] ?? false,
+        }));
+        setExercises(enrichedExercises);
 
         // 部位カテゴリマップを構築
         const catMap: Record<string, MuscleCategory> = {};
-        for (const ex of allExercises) {
+        for (const ex of enrichedExercises) {
           catMap[ex.id] =
             (masterMap[ex.exerciseName] as MuscleCategory | undefined) ??
             classifyExercise(ex.exerciseName);
@@ -109,20 +115,32 @@ export function TodayView({
         }
 
         const grouped: Record<string, WorkoutSet[]> = {};
-        for (const ex of allExercises) grouped[ex.id] = [];
+        for (const ex of enrichedExercises) grouped[ex.id] = [];
         for (const s of allSets) {
           if (!grouped[s.sessionExerciseId]) grouped[s.sessionExerciseId] = [];
           grouped[s.sessionExerciseId].push(s);
         }
 
+        // isDuration 種目の既存 DB セットも 1 セット（完了済み + pending 1件）に制限
+        for (const ex of enrichedExercises) {
+          if (!ex.isDuration) continue;
+          const sets = grouped[ex.id];
+          if (sets.length <= 1) continue;
+          const completed = sets.filter((s) => s.status === "completed");
+          const pending   = sets.filter((s) => s.status === "pending");
+          grouped[ex.id] = [...completed, ...pending.slice(0, 1)];
+        }
+
         // プリセットが必要な種目を一括取得（N+1 → 1 クエリ）
-        const exercisesNeedingPresets = allExercises.filter(
+        const exercisesNeedingPresets = enrichedExercises.filter(
           (ex) => grouped[ex.id].length === 0
         );
         const prevDataMap = await getPreviousSessionDataBatch(exercisesNeedingPresets);
         for (const ex of exercisesNeedingPresets) {
           const prev = prevDataMap.get(ex.exerciseName) ?? null;
-          const preset = buildExercisePreset(ex, prev);
+          // isDuration 種目は常に 1 セットだけプリセット生成
+          const effectiveEx = ex.isDuration ? { ...ex, plannedSets: 1 } : ex;
+          const preset = buildExercisePreset(effectiveEx, prev);
           grouped[ex.id] = preset.sets.map((p) => ({
             id: newId(),
             userId: "",
@@ -571,7 +589,7 @@ export function TodayView({
             <div key={cat} className="flex items-center gap-3">
               {/* 部位ラベル */}
               <span
-                className="text-xs font-semibold w-8 shrink-0"
+                className="text-xs font-semibold w-12 shrink-0 whitespace-nowrap"
                 style={{ color }}
               >
                 {CATEGORY_LABELS[cat]}

@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCalendarData } from "@/app/(app)/home/actions";
 import { CATEGORY_COLORS, CATEGORY_LABELS, CATEGORY_ORDER, MuscleCategory } from "@/lib/muscleCategory";
 
 interface WorkoutCalendarProps {
   initialYear: number;
   initialMonth: number;
+  /** 過去3ヶ月分のデータをまとめて受け取る（"YYYY-MM-DD" → categories） */
   initialData: Record<string, MuscleCategory[]>;
+  /** 表示を許可する最古の年月 */
+  oldestYear: number;
+  oldestMonth: number;
 }
 
 const DOW_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -23,38 +26,37 @@ export function WorkoutCalendar({
   initialYear,
   initialMonth,
   initialData,
+  oldestYear,
+  oldestMonth,
 }: WorkoutCalendarProps) {
   const router = useRouter();
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);
-  const [data, setData] = useState(initialData);
-  const [loading, setLoading] = useState(false);
 
   const todayStr = getTodayJST();
+  const todayDate = new Date(todayStr + "T00:00:00+09:00");
+  const currentYear = todayDate.getFullYear();
+  const currentMonth = todayDate.getMonth() + 1;
 
-  const navigate = useCallback(
-    async (newYear: number, newMonth: number) => {
-      setLoading(true);
-      try {
-        const result = await getCalendarData(newYear, newMonth);
-        setYear(newYear);
-        setMonth(newMonth);
-        setData(result);
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+  // 翌月：当月以降は非表示
+  const isNextMonthDisabled =
+    year > currentYear || (year === currentYear && month >= currentMonth);
 
+  // 前月：oldest より前には戻れない
+  const isPrevMonthDisabled =
+    year < oldestYear || (year === oldestYear && month <= oldestMonth);
+
+  // クライアントサイドのみでナビ（サーバー呼び出しなし）
   const prevMonth = () => {
-    if (month === 1) navigate(year - 1, 12);
-    else navigate(year, month - 1);
+    if (isPrevMonthDisabled) return;
+    if (month === 1) { setYear(year - 1); setMonth(12); }
+    else setMonth(month - 1);
   };
 
   const nextMonth = () => {
-    if (month === 12) navigate(year + 1, 1);
-    else navigate(year, month + 1);
+    if (isNextMonthDisabled) return;
+    if (month === 12) { setYear(year + 1); setMonth(1); }
+    else setMonth(month + 1);
   };
 
   // Build calendar grid
@@ -81,8 +83,8 @@ export function WorkoutCalendar({
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={prevMonth}
-          disabled={loading}
-          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-[#8E8E93] disabled:opacity-40"
+          disabled={isPrevMonthDisabled}
+          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-[#8E8E93] disabled:opacity-40 disabled:cursor-default"
           aria-label="前の月"
         >
           ◀
@@ -92,8 +94,8 @@ export function WorkoutCalendar({
         </span>
         <button
           onClick={nextMonth}
-          disabled={loading}
-          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-[#8E8E93] disabled:opacity-40"
+          disabled={isNextMonthDisabled}
+          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-[#8E8E93] disabled:opacity-40 disabled:cursor-default"
           aria-label="次の月"
         >
           ▶
@@ -110,24 +112,39 @@ export function WorkoutCalendar({
       </div>
 
       {/* Calendar grid */}
-      <div className={`grid grid-cols-7 gap-y-1 transition-opacity ${loading ? "opacity-50" : ""}`}>
+      <div className="grid grid-cols-7 gap-y-1">
         {cells.map((day, idx) => {
           if (day === null) {
             return <div key={`pad-${idx}`} />;
           }
           const dateStr = formatDateStr(day);
-          const categories = data[dateStr] ?? [];
+          const categories = initialData[dateStr] ?? [];
           const isToday = dateStr === todayStr;
+          const isFuture = dateStr > todayStr;
+
+          const handleClick = () => {
+            if (isToday) {
+              router.push("/today");
+            } else if (!isFuture) {
+              router.push(`/day/${dateStr}`);
+            }
+            // 未来日はタップ無効
+          };
 
           return (
             <button
               key={dateStr}
-              onClick={() => router.push(`/day/${dateStr}`)}
-              className="flex flex-col items-center py-1 rounded-lg hover:bg-white/[0.06]"
+              onClick={handleClick}
+              disabled={isFuture}
+              className="flex flex-col items-center py-1 rounded-lg hover:bg-white/[0.06] disabled:cursor-default disabled:hover:bg-transparent"
             >
               {/* Day number */}
               <div className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium ${
-                isToday ? "bg-[#CAFF4D] text-black font-bold" : "text-white"
+                isToday
+                  ? "bg-[#CAFF4D] text-black font-bold"
+                  : isFuture
+                  ? "text-[#48484A]"
+                  : "text-white"
               }`}>
                 {day}
               </div>

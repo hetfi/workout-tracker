@@ -118,6 +118,13 @@ export async function saveParsedWorkout(
     const matched = await findExerciseByNameOrAlias(ex.name);
     if (matched) {
       exerciseId = matched.id;
+      // isDuration / muscleCategory フラグが変わっていたら更新
+      const updates: Record<string, unknown> = {};
+      if (ex.isDuration && !matched.isDuration) updates.is_duration = true;
+      if (ex.muscleCategory && !matched.muscleCategory) updates.muscle_category = ex.muscleCategory;
+      if (Object.keys(updates).length > 0) {
+        await supabase.from("exercises").update(updates).eq("id", matched.id);
+      }
     } else {
       // Create a new exercise with defaults
       try {
@@ -132,6 +139,13 @@ export async function saveParsedWorkout(
           notes: null,
         });
         exerciseId = newEx.id;
+        // Set is_duration / muscle_category when needed
+        const newUpdates: Record<string, unknown> = {};
+        if (ex.isDuration) newUpdates.is_duration = true;
+        if (ex.muscleCategory) newUpdates.muscle_category = ex.muscleCategory;
+        if (Object.keys(newUpdates).length > 0 && newEx.id) {
+          await supabase.from("exercises").update(newUpdates).eq("id", newEx.id);
+        }
       } catch {
         // Ignore if already exists (race condition)
         const retry = await findExerciseByNameOrAlias(ex.name);
