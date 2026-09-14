@@ -529,9 +529,17 @@ export function TodayView({
           <p className="text-sm text-[#8E8E93]">種目を追加してトレーニングを始めましょう</p>
           <a
             href={`/day/${todayStr}/add?sessionId=${firstActiveSessionId}&backTo=/today`}
-            className="block text-center text-sm py-3 rounded-xl bg-white/[0.08] text-white font-medium"
+            className="block text-center text-sm py-3 rounded-xl font-medium"
+            style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
           >
             ＋ 種目を追加
+          </a>
+          <a
+            href={`/import?date=${todayStr}`}
+            className="block text-center text-sm py-3 rounded-xl font-medium"
+            style={{ backgroundColor: "#CAFF4D", color: "#0D0D0F" }}
+          >
+            ChatGPTから取り込む
           </a>
         </div>
       </div>
