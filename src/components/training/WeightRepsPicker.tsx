@@ -330,10 +330,17 @@ export function WeightRepsPicker({
             <Button
               variant="secondary"
               size="md"
-              onClick={onClose}
+              onClick={() => {
+                setWeight(0);
+                setWeightInput("0");
+                setReps(0);
+                setRepsInput("0");
+                setMinutes(0);
+                setMinutesInput("0");
+              }}
               className="flex-1"
             >
-              キャンセル
+              リセット
             </Button>
             <Button
               variant="primary"
