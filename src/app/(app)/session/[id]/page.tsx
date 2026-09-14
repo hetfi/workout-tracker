@@ -14,7 +14,7 @@ import {
   updateSession,
   updateSessionExercise,
   upsertSet,
-  getPreviousSessionData,
+  getPreviousSessionDataBatch,
   deleteSessionExercise,
   deleteWorkoutSet,
 } from "@/repositories/workoutSessions";
@@ -31,6 +31,7 @@ import {
   deleteDraftTimer,
 } from "@/lib/storage/draft";
 import { getExerciseCategoryMap } from "@/repositories/exercises";
+import { getUserSettings } from "@/repositories/userSettings";
 import { getIntervalEnabled } from "@/lib/storage/localSettings";
 import { buildExercisePreset } from "@/lib/preset";
 import {
@@ -82,9 +83,25 @@ export default function SessionPage({
     const load = async () => {
       setLoading(true);
       try {
-        const [sessionData, exData] = await Promise.all([
+        // 全依存なしのデータを一括並列取得（7 段逐次 → 1 Promise.all）
+        const [
+          sessionData,
+          exData,
+          masterMap,
+          setsData,
+          dbTimer,
+          localTimer,
+          userSettings,
+          draft,
+        ] = await Promise.all([
           getSessionById(sessionId),
           getSessionExercises(sessionId),
+          getExerciseCategoryMap(),
+          getSessionSets(sessionId),
+          getRunningTimer(sessionId),
+          loadDraftTimer(sessionId),
+          getUserSettings(),
+          loadDraftSession(sessionId),
         ]);
 
         if (!sessionData) {
@@ -96,8 +113,7 @@ export default function SessionPage({
         setSession(sessionData);
         setExercises(exData);
 
-        // 種目マスターから部位カテゴリを取得
-        const masterMap = await getExerciseCategoryMap();
+        // 部位カテゴリマップを構築
         const catMap: Record<string, MuscleCategory> = {};
         for (const ex of exData) {
           catMap[ex.id] =
@@ -106,7 +122,13 @@ export default function SessionPage({
         }
         setCategoriesMap(catMap);
 
-        const setsData = await getSessionSets(sessionId);
+        // ユーザー設定を反映
+        if (userSettings) {
+          setSettings({
+            soundEnabled: userSettings.soundEnabled,
+            vibrationEnabled: userSettings.vibrationEnabled,
+          });
+        }
 
         // Group sets by sessionExerciseId
         const grouped: Record<string, WorkoutSet[]> = {};
@@ -120,40 +142,36 @@ export default function SessionPage({
           grouped[s.sessionExerciseId].push(s);
         }
 
-        // If no sets yet, create initial sets from presets
-        for (const ex of exData) {
-          if (grouped[ex.id].length === 0) {
-            const prev = await getPreviousSessionData(
-              ex.exerciseId,
-              ex.exerciseName
-            );
-            const preset = buildExercisePreset(ex, prev);
-            const sets: WorkoutSet[] = preset.sets.map((p) => ({
-              id: newClientId(), // temp ID (replaced after save)
-              userId: "",
-              sessionExerciseId: ex.id,
-              sessionId,
-              setNumber: p.setNumber,
-              weight: p.weight,
-              reps: p.reps,
-              status: "pending",
-              completedAt: null,
-              notes: null,
-              clientId: newClientId(),
-              side: null,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }));
-            grouped[ex.id] = sets;
-          }
+        // プリセットが必要な種目を一括取得（N+1 → 1 クエリ）
+        const exercisesNeedingPresets = exData.filter(
+          (ex) => grouped[ex.id].length === 0
+        );
+        const prevDataMap = await getPreviousSessionDataBatch(exercisesNeedingPresets);
+        for (const ex of exercisesNeedingPresets) {
+          const prev = prevDataMap.get(ex.exerciseName) ?? null;
+          const preset = buildExercisePreset(ex, prev);
+          grouped[ex.id] = preset.sets.map((p) => ({
+            id: newClientId(),
+            userId: "",
+            sessionExerciseId: ex.id,
+            sessionId,
+            setNumber: p.setNumber,
+            weight: p.weight,
+            reps: p.reps,
+            status: "pending" as const,
+            completedAt: null,
+            notes: null,
+            clientId: newClientId(),
+            side: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }));
         }
 
         setSetsMap(grouped);
 
-        // Restore local draft
-        const draft = await loadDraftSession(sessionId);
+        // IndexedDB ドラフトをマージ
         if (draft) {
-          // Merge draft sets over db sets (draft is more recent)
           for (const draftSet of draft.sets) {
             const exId = draftSet.sessionExerciseId;
             if (grouped[exId]) {
@@ -167,7 +185,6 @@ export default function SessionPage({
                   side: draftSet.side ?? null,
                 };
               } else if (draftSet.side) {
-                // One-arm set not in presets — reconstruct and push
                 grouped[exId].push({
                   id: crypto.randomUUID(),
                   userId: "",
@@ -190,25 +207,21 @@ export default function SessionPage({
           setSetsMap({ ...grouped });
         }
 
-        // Restore timer
-        const [dbTimer, localTimer] = await Promise.all([
-          getRunningTimer(sessionId),
-          loadDraftTimer(sessionId),
-        ]);
-
-        const timerToUse = dbTimer ?? localTimer
-          ? fromRestTimer(dbTimer!) ?? localTimer
-          : null;
-
+        // タイマーを復元
+        const timerToUse =
+          dbTimer ?? localTimer
+            ? fromRestTimer(dbTimer!) ?? localTimer
+            : null;
         if (timerToUse) {
-          const state = dbTimer ? fromRestTimer(dbTimer) : timerToUse as TimerState;
+          const state = dbTimer
+            ? fromRestTimer(dbTimer)
+            : (timerToUse as TimerState);
           setTimerState(state);
-          // Find exercise name for timer
-          const timerEx = exData.find((e) => e.id === state.sessionExerciseId);
+          const timerEx = exData.find((e) => e.id === state?.sessionExerciseId);
           if (timerEx) setActiveExerciseName(timerEx.exerciseName);
         }
 
-        // Start session if not started
+        // セッションを in_progress に更新
         if (sessionData.status === "not_started") {
           await updateSession(sessionId, {
             status: "in_progress",
@@ -217,16 +230,6 @@ export default function SessionPage({
           setSession((prev) =>
             prev ? { ...prev, status: "in_progress" } : prev
           );
-        }
-
-        // Load settings
-        const { getUserSettings } = await import("@/repositories/userSettings");
-        const userSettings = await getUserSettings();
-        if (userSettings) {
-          setSettings({
-            soundEnabled: userSettings.soundEnabled,
-            vibrationEnabled: userSettings.vibrationEnabled,
-          });
         }
       } catch (err) {
         console.error(err);

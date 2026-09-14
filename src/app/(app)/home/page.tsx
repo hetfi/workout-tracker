@@ -92,18 +92,30 @@ async function getTodayData(userId: string) {
   const sessionList = sessions ?? [];
   const sessionIds = sessionList.map((s) => s.id);
 
-  // 完了セット数をセッションごとにカウント
+  // セット数カウント + アクティブセッションIDを事前に取得して並列クエリ
+  const activeSessionIdsCandidates = sessionList
+    .filter((s) => s.status === "not_started" || s.status === "in_progress")
+    .map((s) => s.id);
+
+  const [setCountResult, exerciseCountResult] = await Promise.all([
+    sessionIds.length > 0
+      ? supabase
+          .from("workout_sets")
+          .select("session_id")
+          .in("session_id", sessionIds)
+          .eq("status", "completed")
+      : Promise.resolve({ data: [] as { session_id: string }[] }),
+    activeSessionIdsCandidates.length > 0
+      ? supabase
+          .from("workout_session_exercises")
+          .select("id", { count: "exact", head: true })
+          .in("session_id", activeSessionIdsCandidates)
+      : Promise.resolve({ count: 0 }),
+  ]);
+
   const sessionSetCounts: Record<string, number> = {};
-  if (sessionIds.length > 0) {
-    const { data: setCounts } = await supabase
-      .from("workout_sets")
-      .select("session_id")
-      .in("session_id", sessionIds)
-      .eq("status", "completed");
-    for (const r of setCounts ?? []) {
-      sessionSetCounts[r.session_id] =
-        (sessionSetCounts[r.session_id] ?? 0) + 1;
-    }
+  for (const r of (setCountResult.data ?? []) as { session_id: string }[]) {
+    sessionSetCounts[r.session_id] = (sessionSetCounts[r.session_id] ?? 0) + 1;
   }
 
   // 0セットの completed セッションは除外
@@ -112,18 +124,10 @@ async function getTodayData(userId: string) {
       s.status !== "completed" || (sessionSetCounts[s.id] ?? 0) > 0
   );
 
-  // アクティブセッションに種目が1件でもあるか確認
   const activeSessionIds = validSessions
     .filter((s) => s.status === "not_started" || s.status === "in_progress")
     .map((s) => s.id);
-  let hasExercises = false;
-  if (activeSessionIds.length > 0) {
-    const { count } = await supabase
-      .from("workout_session_exercises")
-      .select("id", { count: "exact", head: true })
-      .in("session_id", activeSessionIds);
-    hasExercises = (count ?? 0) > 0;
-  }
+  const hasExercises = ((exerciseCountResult as { count: number | null }).count ?? 0) > 0;
 
   return {
     todayStr,
@@ -235,12 +239,16 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { todayStr, sessions, streakSessions, firstActiveSessionId, hasExercises } =
-    await getTodayData(user.id);
+  // 日付は独立して計算できるので getTodayData と getCalendarData を並列実行
+  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const jstYear = parseInt(jst.toISOString().slice(0, 4));
+  const jstMonth = parseInt(jst.toISOString().slice(5, 7));
 
-  const jstYear = parseInt(todayStr.slice(0, 4));
-  const jstMonth = parseInt(todayStr.slice(5, 7));
-  const calendarData = await getCalendarData(jstYear, jstMonth);
+  const [{ todayStr, sessions, streakSessions, firstActiveSessionId, hasExercises }, calendarData] =
+    await Promise.all([
+      getTodayData(user.id),
+      getCalendarData(jstYear, jstMonth),
+    ]);
 
   const hasAnySessions = sessions.length > 0;
   const hasActiveSessions = sessions.some(

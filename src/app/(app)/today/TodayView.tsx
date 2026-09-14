@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/Button";
 import { SaveStatusIndicator } from "@/components/ui/SaveStatus";
 import { useToast } from "@/components/ui/Toast";
 import {
-  getSessionExercises,
-  getSessionSets,
+  getSessionExercisesForSessions,
+  getSessionSetsForSessions,
   updateSession,
   updateSessionExercise,
   upsertSet,
-  getPreviousSessionData,
+  getPreviousSessionDataBatch,
   deleteSessionExercise,
   deleteWorkoutSet,
 } from "@/repositories/workoutSessions";
@@ -81,22 +81,17 @@ export function TodayView({
     const load = async () => {
       setLoading(true);
       try {
-        const allExercises: WorkoutSessionExercise[] = [];
-        const allSets: WorkoutSet[] = [];
-
-        for (const sid of sessionIds) {
-          const [exData, setsData] = await Promise.all([
-            getSessionExercises(sid),
-            getSessionSets(sid),
-          ]);
-          allExercises.push(...exData);
-          allSets.push(...setsData);
-        }
+        // 並列で全データを一括取得（N*2+2 逐次 → 4 並列）
+        const [allExercises, allSets, masterMap, userSettings] = await Promise.all([
+          getSessionExercisesForSessions(sessionIds),
+          getSessionSetsForSessions(sessionIds),
+          getExerciseCategoryMap(),
+          getUserSettings(),
+        ]);
 
         setExercises(allExercises);
 
-        // 種目マスターから部位カテゴリを取得
-        const masterMap = await getExerciseCategoryMap();
+        // 部位カテゴリマップを構築
         const catMap: Record<string, MuscleCategory> = {};
         for (const ex of allExercises) {
           catMap[ex.id] =
@@ -105,8 +100,7 @@ export function TodayView({
         }
         setCategoriesMap(catMap);
 
-        // ユーザー設定（通知音・バイブ）を取得
-        const userSettings = await getUserSettings();
+        // ユーザー設定（通知音・バイブ）を反映
         if (userSettings) {
           setSettings({
             soundEnabled: userSettings.soundEnabled,
@@ -121,36 +115,35 @@ export function TodayView({
           grouped[s.sessionExerciseId].push(s);
         }
 
-        // Generate presets for exercises with no sets yet
-        for (const ex of allExercises) {
-          if (grouped[ex.id].length === 0) {
-            const prev = await getPreviousSessionData(
-              ex.exerciseId,
-              ex.exerciseName
-            );
-            const preset = buildExercisePreset(ex, prev);
-            grouped[ex.id] = preset.sets.map((p) => ({
-              id: newId(),
-              userId: "",
-              sessionExerciseId: ex.id,
-              sessionId: ex.sessionId,
-              setNumber: p.setNumber,
-              weight: p.weight,
-              reps: p.reps,
-              status: "pending" as const,
-              completedAt: null,
-              notes: null,
-              clientId: newId(),
-              side: null,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }));
-          }
+        // プリセットが必要な種目を一括取得（N+1 → 1 クエリ）
+        const exercisesNeedingPresets = allExercises.filter(
+          (ex) => grouped[ex.id].length === 0
+        );
+        const prevDataMap = await getPreviousSessionDataBatch(exercisesNeedingPresets);
+        for (const ex of exercisesNeedingPresets) {
+          const prev = prevDataMap.get(ex.exerciseName) ?? null;
+          const preset = buildExercisePreset(ex, prev);
+          grouped[ex.id] = preset.sets.map((p) => ({
+            id: newId(),
+            userId: "",
+            sessionExerciseId: ex.id,
+            sessionId: ex.sessionId,
+            setNumber: p.setNumber,
+            weight: p.weight,
+            reps: p.reps,
+            status: "pending" as const,
+            completedAt: null,
+            notes: null,
+            clientId: newId(),
+            side: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }));
         }
 
-        // Merge drafts from IndexedDB
-        for (const sid of sessionIds) {
-          const draft = await loadDraftSession(sid);
+        // IndexedDB のドラフトをマージ（並列）
+        const drafts = await Promise.all(sessionIds.map(loadDraftSession));
+        for (const draft of drafts) {
           if (!draft) continue;
           for (const draftSet of draft.sets) {
             const exId = draftSet.sessionExerciseId;

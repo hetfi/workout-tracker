@@ -144,9 +144,10 @@ export async function createSessionFromPlan(
   if (sessionError) throw sessionError;
   const session = toSession(sessionData);
 
-  // Create session exercises
-  for (const pe of planExercises.sort((a, b) => a.sortOrder - b.sortOrder)) {
-    await supabase.from("workout_session_exercises").insert({
+  // Create session exercises (bulk insert — 1 round trip)
+  const exerciseRows = planExercises
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((pe) => ({
       user_id: user.id,
       session_id: session.id,
       exercise_id: pe.exerciseId,
@@ -158,7 +159,9 @@ export async function createSessionFromPlan(
       sort_order: pe.sortOrder,
       notes: pe.notes,
       is_one_arm: false,
-    });
+    }));
+  if (exerciseRows.length > 0) {
+    await supabase.from("workout_session_exercises").insert(exerciseRows);
   }
 
   return session;
@@ -218,6 +221,21 @@ export async function getSessionExercises(
   return (data ?? []).map(toSessionExercise);
 }
 
+/** 複数セッションの種目を 1 回のクエリで一括取得 */
+export async function getSessionExercisesForSessions(
+  sessionIds: string[]
+): Promise<WorkoutSessionExercise[]> {
+  if (sessionIds.length === 0) return [];
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("workout_session_exercises")
+    .select("*")
+    .in("session_id", sessionIds)
+    .order("sort_order");
+  if (error) throw error;
+  return (data ?? []).map(toSessionExercise);
+}
+
 export async function updateSessionExercise(
   id: string,
   updates: Partial<Pick<WorkoutSessionExercise, "skipped" | "notes" | "sortOrder">>
@@ -248,6 +266,21 @@ export async function getSessionSets(
     .from("workout_sets")
     .select("*")
     .eq("session_id", sessionId)
+    .order("set_number");
+  if (error) throw error;
+  return (data ?? []).map(toSet);
+}
+
+/** 複数セッションのセットを 1 回のクエリで一括取得 */
+export async function getSessionSetsForSessions(
+  sessionIds: string[]
+): Promise<WorkoutSet[]> {
+  if (sessionIds.length === 0) return [];
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("workout_sets")
+    .select("*")
+    .in("session_id", sessionIds)
     .order("set_number");
   if (error) throw error;
   return (data ?? []).map(toSet);
@@ -347,6 +380,56 @@ export async function getPreviousSessionData(
       status: s.status as WorkoutSet["status"],
     })),
   };
+}
+
+/**
+ * 複数種目の前回セッションデータを 1 回のクエリで一括取得（N+1 解消）。
+ * 戻り値は exerciseName をキーとした Map。
+ */
+export async function getPreviousSessionDataBatch(
+  exercises: { exerciseId: string | null; exerciseName: string }[]
+): Promise<Map<string, PreviousExerciseData | null>> {
+  const resultMap = new Map<string, PreviousExerciseData | null>();
+  if (exercises.length === 0) return resultMap;
+
+  const supabase = createClient();
+  const names = [...new Set(exercises.map((e) => e.exerciseName))];
+
+  const { data } = await supabase
+    .from("workout_session_exercises")
+    .select(
+      `
+      exercise_id,
+      exercise_name,
+      created_at,
+      workout_sessions!inner(status),
+      workout_sets(set_number, weight, reps, status)
+    `
+    )
+    .eq("workout_sessions.status", "completed")
+    .in("exercise_name", names)
+    .order("created_at", { ascending: false })
+    .limit(names.length * 5); // 種目あたり最大 5 件で十分
+
+  // created_at 降順なので最初に出てきたものが最新
+  const seen = new Set<string>();
+  for (const row of data ?? []) {
+    const r = row as Record<string, unknown>;
+    const name = r.exercise_name as string;
+    if (seen.has(name)) continue;
+    seen.add(name);
+    resultMap.set(name, {
+      exerciseId: (r.exercise_id as string) ?? null,
+      exerciseName: name,
+      sets: ((r.workout_sets as Record<string, unknown>[]) ?? []).map((s) => ({
+        setNumber: Number(s.set_number),
+        weight: Number(s.weight),
+        reps: Number(s.reps),
+        status: s.status as WorkoutSet["status"],
+      })),
+    });
+  }
+  return resultMap;
 }
 
 // ---- Delete helpers ----

@@ -199,8 +199,17 @@ export async function deleteAlias(aliasId: string): Promise<void> {
 /**
  * 種目名 → muscle_category のマップを返す（マスターデータ参照用）。
  * deleted_at が null の種目のみ対象。
+ * クライアントサイドで 5 分間キャッシュする（画面遷移のたびに再取得しない）。
  */
+let _categoryMapCache: Record<string, string> | null = null;
+let _categoryMapCachedAt = 0;
+const CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000;
+
 export async function getExerciseCategoryMap(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (_categoryMapCache && now - _categoryMapCachedAt < CATEGORY_CACHE_TTL_MS) {
+    return _categoryMapCache;
+  }
   const supabase = createClient();
   const { data } = await supabase
     .from("exercises")
@@ -212,7 +221,15 @@ export async function getExerciseCategoryMap(): Promise<Record<string, string>> 
       map[row.name as string] = row.muscle_category as string;
     }
   }
+  _categoryMapCache = map;
+  _categoryMapCachedAt = now;
   return map;
+}
+
+/** キャッシュを手動で無効化する（種目を追加・更新した後に呼ぶ） */
+export function invalidateCategoryMapCache(): void {
+  _categoryMapCache = null;
+  _categoryMapCachedAt = 0;
 }
 
 /**
