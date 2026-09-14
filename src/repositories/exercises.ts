@@ -198,57 +198,50 @@ export async function deleteAlias(aliasId: string): Promise<void> {
 }
 
 /**
- * 種目名 → muscle_category のマップを返す（マスターデータ参照用）。
- * deleted_at が null の種目のみ対象。
- * クライアントサイドで 5 分間キャッシュする（画面遷移のたびに再取得しない）。
+ * 種目マスターマップ（category + isDuration）を 1 クエリで取得・キャッシュ。
+ * deleted_at が null の種目のみ対象。5 分間クライアントサイドキャッシュ。
  */
-let _categoryMapCache: Record<string, string> | null = null;
-let _categoryMapCachedAt = 0;
-const CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000;
+interface ExerciseMasterCache {
+  categoryMap: Record<string, string>;
+  durationMap: Record<string, boolean>;
+}
+let _masterCache: ExerciseMasterCache | null = null;
+let _masterCachedAt = 0;
+const MASTER_CACHE_TTL_MS = 5 * 60 * 1000;
 
-export async function getExerciseCategoryMap(): Promise<Record<string, string>> {
+async function getExerciseMasterMaps(): Promise<ExerciseMasterCache> {
   const now = Date.now();
-  if (_categoryMapCache && now - _categoryMapCachedAt < CATEGORY_CACHE_TTL_MS) {
-    return _categoryMapCache;
+  if (_masterCache && now - _masterCachedAt < MASTER_CACHE_TTL_MS) {
+    return _masterCache;
   }
   const supabase = createClient();
   const { data } = await supabase
     .from("exercises")
-    .select("name, muscle_category")
+    .select("name, muscle_category, is_duration")
     .is("deleted_at", null);
-  const map: Record<string, string> = {};
+  const categoryMap: Record<string, string> = {};
+  const durationMap: Record<string, boolean> = {};
   for (const row of data ?? []) {
-    if (row.muscle_category) {
-      map[row.name as string] = row.muscle_category as string;
-    }
+    if (row.muscle_category) categoryMap[row.name as string] = row.muscle_category as string;
+    if (row.is_duration)     durationMap[row.name as string] = true;
   }
-  _categoryMapCache = map;
-  _categoryMapCachedAt = now;
-  return map;
+  _masterCache = { categoryMap, durationMap };
+  _masterCachedAt = now;
+  return _masterCache;
+}
+
+export async function getExerciseCategoryMap(): Promise<Record<string, string>> {
+  return (await getExerciseMasterMaps()).categoryMap;
+}
+
+export async function getExerciseDurationMap(): Promise<Record<string, boolean>> {
+  return (await getExerciseMasterMaps()).durationMap;
 }
 
 /** キャッシュを手動で無効化する（種目を追加・更新した後に呼ぶ） */
 export function invalidateCategoryMapCache(): void {
-  _categoryMapCache = null;
-  _categoryMapCachedAt = 0;
-}
-
-/**
- * 種目名 → isDuration のマップを返す（「時間記録」フラグ参照用）。
- */
-export async function getExerciseDurationMap(): Promise<Record<string, boolean>> {
-  const supabase = createClient();
-  const { data } = await supabase
-    .from("exercises")
-    .select("name, is_duration")
-    .is("deleted_at", null);
-  const map: Record<string, boolean> = {};
-  for (const row of data ?? []) {
-    if (row.is_duration) {
-      map[row.name as string] = true;
-    }
-  }
-  return map;
+  _masterCache = null;
+  _masterCachedAt = 0;
 }
 
 /**
