@@ -141,22 +141,45 @@ export function TodayView({
           // isDuration 種目は常に 1 セットだけプリセット生成
           const effectiveEx = ex.isDuration ? { ...ex, plannedSets: 1 } : ex;
           const preset = buildExercisePreset(effectiveEx, prev);
-          grouped[ex.id] = preset.sets.map((p) => ({
-            id: newId(),
-            userId: "",
-            sessionExerciseId: ex.id,
-            sessionId: ex.sessionId,
-            setNumber: p.setNumber,
-            weight: p.weight,
-            reps: p.reps,
-            status: "pending" as const,
-            completedAt: null,
-            notes: null,
-            clientId: newId(),
-            side: null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }));
+          if (ex.isOneArm && !ex.isDuration) {
+            // 片側種目: L と R それぞれのスロットを生成
+            // （side: null のプリセットだと完了判定に残り続けるため）
+            grouped[ex.id] = preset.sets.flatMap((p) =>
+              (["L", "R"] as const).map((side) => ({
+                id: newId(),
+                userId: "",
+                sessionExerciseId: ex.id,
+                sessionId: ex.sessionId,
+                setNumber: p.setNumber,
+                weight: p.weight,
+                reps: p.reps,
+                status: "pending" as const,
+                completedAt: null,
+                notes: null,
+                clientId: newId(),
+                side,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }))
+            );
+          } else {
+            grouped[ex.id] = preset.sets.map((p) => ({
+              id: newId(),
+              userId: "",
+              sessionExerciseId: ex.id,
+              sessionId: ex.sessionId,
+              setNumber: p.setNumber,
+              weight: p.weight,
+              reps: p.reps,
+              status: "pending" as const,
+              completedAt: null,
+              notes: null,
+              clientId: newId(),
+              side: null,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }));
+          }
         }
 
         // IndexedDB のドラフトをマージ（並列）
@@ -442,47 +465,80 @@ export function TodayView({
         (max, s) => Math.max(max, s.setNumber),
         0
       );
+      const newSetNumber = maxSetNumber + 1;
       const lastSet = existingSets[existingSets.length - 1];
-      const clientId = newId();
-      const newSet: WorkoutSet = {
-        id: clientId,
-        userId: lastSet?.userId ?? "",
-        sessionExerciseId: exerciseId,
-        sessionId: ex?.sessionId ?? "",
-        setNumber: maxSetNumber + 1,
-        weight: lastSet?.weight ?? 0,
-        reps: lastSet?.reps ?? 0,
-        status: "pending",
-        completedAt: null,
-        notes: null,
-        clientId,
-        side: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      setSetsMap((prev) => {
-        const updated = {
-          ...prev,
-          [exerciseId]: [...(prev[exerciseId] ?? []), newSet],
-        };
-        saveDraft(updated);
-        return updated;
-      });
-      try {
-        await upsertSet({
+
+      if (ex?.isOneArm) {
+        // 片側種目: L と R の両スロットを追加
+        const newSets: WorkoutSet[] = (["L", "R"] as const).map((side) => {
+          const clientId = newId();
+          return {
+            id: clientId,
+            userId: "",
+            sessionExerciseId: exerciseId,
+            sessionId: ex.sessionId,
+            setNumber: newSetNumber,
+            weight: lastSet?.weight ?? 0,
+            reps: lastSet?.reps ?? 0,
+            status: "pending" as const,
+            completedAt: null,
+            notes: null,
+            clientId,
+            side,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+        });
+        setSetsMap((prev) => {
+          const updated = {
+            ...prev,
+            [exerciseId]: [...(prev[exerciseId] ?? []), ...newSets],
+          };
+          saveDraft(updated);
+          return updated;
+        });
+      } else {
+        const clientId = newId();
+        const newSet: WorkoutSet = {
+          id: clientId,
+          userId: lastSet?.userId ?? "",
           sessionExerciseId: exerciseId,
           sessionId: ex?.sessionId ?? "",
-          setNumber: newSet.setNumber,
-          weight: newSet.weight,
-          reps: newSet.reps,
+          setNumber: newSetNumber,
+          weight: lastSet?.weight ?? 0,
+          reps: lastSet?.reps ?? 0,
           status: "pending",
           completedAt: null,
           notes: null,
           clientId,
           side: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        setSetsMap((prev) => {
+          const updated = {
+            ...prev,
+            [exerciseId]: [...(prev[exerciseId] ?? []), newSet],
+          };
+          saveDraft(updated);
+          return updated;
         });
-      } catch {
-        /* non-critical */
+        try {
+          await upsertSet({
+            sessionExerciseId: exerciseId,
+            sessionId: ex?.sessionId ?? "",
+            setNumber: newSet.setNumber,
+            weight: newSet.weight,
+            reps: newSet.reps,
+            status: "pending",
+            completedAt: null,
+            notes: null,
+            clientId,
+            side: null,
+          });
+        } catch {
+          /* non-critical */
+        }
       }
     },
     [exercises, setsMap, saveDraft]

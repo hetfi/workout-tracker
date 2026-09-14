@@ -365,15 +365,26 @@ export function ExerciseCard({
   // isDuration 種目は常に 1 セット扱い
   const effectivePlannedSets = sessionExercise.isDuration ? 1 : sessionExercise.plannedSets;
 
+  // 片側モード: setsMap に含まれる実際の L/R セット数からペア数を導出
+  // （セット追加後も sessionExercise.plannedSets は更新されないため）
+  const oneArmPairCount = isOneArmLocal
+    ? Math.max(
+        effectivePlannedSets,
+        sets
+          .filter((s) => s.side === "L" || s.side === "R")
+          .reduce((mx, s) => Math.max(mx, s.setNumber), 0)
+      )
+    : effectivePlannedSets;
+
   // Progress counts
   let completedCount: number;
   let totalCount: number;
 
   if (isOneArmLocal) {
+    // L+R プリセット方式: setsMap の L/R セットをそのまま集計
     const sideSets = sets.filter((s) => s.side === "L" || s.side === "R");
     completedCount = sideSets.filter((s) => s.status === "completed").length;
-    // Subtract individually-deleted slots so badge reflects actual visible slots
-    totalCount = effectivePlannedSets * 2 - deletedOneArmSlots.size;
+    totalCount = sideSets.length - deletedOneArmSlots.size;
   } else {
     completedCount = sets.filter((s) => s.status === "completed").length;
     totalCount = sets.length;
@@ -533,9 +544,9 @@ export function ExerciseCard({
       {/* Sets */}
       <div className="space-y-2">
         {isOneArmLocal ? (
-          // One-arm mode: L and R row for each planned set
+          // One-arm mode: L and R row for each pair (derived from actual sets)
           Array.from(
-            { length: effectivePlannedSets },
+            { length: oneArmPairCount },
             (_, i) => i + 1
           ).flatMap((n) => {
             const lSet = sets.find((s) => s.setNumber === n && s.side === "L");
