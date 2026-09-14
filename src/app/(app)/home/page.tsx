@@ -134,8 +134,70 @@ async function getTodayData(userId: string) {
     sessions: validSessions,
     streakSessions: streakSessions ?? [],
     firstActiveSessionId: activeSessionIds[0] ?? null,
+    activeSessionIds,
     hasExercises,
   };
+}
+
+/**
+ * アクティブセッションで未完了セットが残っている部位カテゴリを返す。
+ * planned_sets > completed_sets の種目があるカテゴリを対象とする。
+ */
+async function getIncompleteCategories(
+  userId: string,
+  activeSessionIds: string[]
+): Promise<MuscleCategory[]> {
+  if (activeSessionIds.length === 0) return [];
+  const supabase = await createClient();
+
+  const [{ data: exercises }, { data: completedSets }] = await Promise.all([
+    supabase
+      .from("workout_session_exercises")
+      .select("id, exercise_name, planned_sets")
+      .in("session_id", activeSessionIds),
+    supabase
+      .from("workout_sets")
+      .select("session_exercise_id")
+      .in("session_id", activeSessionIds)
+      .eq("status", "completed"),
+  ]);
+
+  if (!exercises || exercises.length === 0) return [];
+
+  // 種目ごとの完了セット数
+  const completedCount: Record<string, number> = {};
+  for (const s of completedSets ?? []) {
+    completedCount[s.session_exercise_id] =
+      (completedCount[s.session_exercise_id] ?? 0) + 1;
+  }
+
+  // 未完了の種目名を抽出
+  const incompleteNames = exercises
+    .filter((ex) => (completedCount[ex.id] ?? 0) < Number(ex.planned_sets))
+    .map((ex) => ex.exercise_name as string);
+
+  if (incompleteNames.length === 0) return [];
+
+  // 種目マスターからカテゴリを取得
+  const uniqueNames = [...new Set(incompleteNames)];
+  const { data: masterExercises } = await supabase
+    .from("exercises")
+    .select("name, muscle_category")
+    .eq("user_id", userId)
+    .in("name", uniqueNames);
+
+  const catMap: Record<string, string> = {};
+  for (const me of masterExercises ?? []) {
+    if (me.muscle_category) catMap[me.name as string] = me.muscle_category as string;
+  }
+
+  const cats = new Set<MuscleCategory>();
+  for (const name of incompleteNames) {
+    const cat = (catMap[name] ?? classifyExercise(name)) as MuscleCategory;
+    cats.add(cat);
+  }
+
+  return CATEGORY_ORDER.filter((cat) => cats.has(cat));
 }
 
 /** 今日の完了済み種目を取得（completed set がある種目のみ） */
@@ -244,7 +306,7 @@ export default async function HomePage() {
   const jstYear = parseInt(jst.toISOString().slice(0, 4));
   const jstMonth = parseInt(jst.toISOString().slice(5, 7));
 
-  const [{ todayStr, sessions, streakSessions, firstActiveSessionId, hasExercises }, calendarData] =
+  const [{ todayStr, sessions, streakSessions, firstActiveSessionId, activeSessionIds, hasExercises }, calendarData] =
     await Promise.all([
       getTodayData(user.id),
       getCalendarData(jstYear, jstMonth),
@@ -258,13 +320,15 @@ export default async function HomePage() {
   // セッションがあっても種目が0件の場合は「追加」UIを出す
   const showAddUI = !hasAnySessions || (hasActiveSessions && !hasExercises);
 
-  // 実績データ（セッションがある場合は常に取得）
-  const achievement = hasAnySessions
-    ? await getTodayAchievement(
-        user.id,
-        sessions.map((s) => s.id)
-      )
-    : [];
+  // 実績データ + 未完了カテゴリを並列取得
+  const [achievement, incompleteCategories] = await Promise.all([
+    hasAnySessions
+      ? getTodayAchievement(user.id, sessions.map((s) => s.id))
+      : Promise.resolve([]),
+    hasActiveSessions && hasExercises && !showAddUI
+      ? getIncompleteCategories(user.id, activeSessionIds)
+      : Promise.resolve([]),
+  ]);
 
   // 実績タイトル（完了時のみ使う）
   const achievementTitle = (() => {
@@ -344,6 +408,12 @@ export default async function HomePage() {
       ) : (
         /* 進行中 → 再開ボタン + 完了済み種目 */
         <div className="space-y-3">
+          {/* 未完了部位の案内 */}
+          {incompleteCategories.length > 0 && (
+            <p className="text-xs text-center" style={{ color: "#8E8E93" }}>
+              まだ{incompleteCategories.map((c) => CATEGORY_LABELS[c]).join("・")}が未完了です
+            </p>
+          )}
           <Link
             href="/today"
             className="block rounded-xl bg-[#CAFF4D] text-black text-center py-4 px-6"
@@ -362,7 +432,7 @@ export default async function HomePage() {
 
       {/* Calendar */}
       <div>
-        <h2 className="text-sm font-medium text-[#8E8E93] mb-3 px-1">
+        <h2 className="text-xl font-bold text-white mb-3">
           トレーニング記録
         </h2>
         <WorkoutCalendar
