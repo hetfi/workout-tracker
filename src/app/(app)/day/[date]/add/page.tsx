@@ -35,7 +35,12 @@ export default async function AddExercisesPage({ params, searchParams }: PagePro
         </p>
       </div>
 
-      <AddExercisesForm date={date} sessionId={sessionId} backTo={backTo} />
+      <AddExercisesForm
+        date={date}
+        sessionId={sessionId}
+        backTo={backTo}
+        saveTo={sessionId ? `/session/${sessionId}` : "/today"}
+      />
     </div>
   );
 }
