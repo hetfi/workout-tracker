@@ -209,12 +209,12 @@ export function ExerciseCard({
         const newPlannedSets = Math.max(1, sessionExercise.plannedSets - fullyDeletedPairs);
 
         // Async DB update — fire-and-forget (non-critical)
-        createClient()
-          .from("workout_session_exercises")
-          .update({ planned_sets: newPlannedSets })
-          .eq("id", sessionExercise.id)
-          .then(() => {})
-          .catch(() => {});
+        void (async () => {
+          await createClient()
+            .from("workout_session_exercises")
+            .update({ planned_sets: newPlannedSets })
+            .eq("id", sessionExercise.id);
+        })();
 
         return next;
       });
