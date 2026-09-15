@@ -31,7 +31,6 @@ import { IntervalTimer } from "@/components/training/IntervalTimer";
 import type { TimerState } from "@/lib/timer";
 import { buildExercisePreset } from "@/lib/preset";
 import {
-  classifyExercise,
   CATEGORY_ORDER,
   CATEGORY_COLORS,
   CATEGORY_LABELS,
@@ -101,8 +100,7 @@ export function TodayView({
         const catMap: Record<string, MuscleCategory> = {};
         for (const ex of enrichedExercises) {
           catMap[ex.id] =
-            (masterMap[ex.exerciseName] as MuscleCategory | undefined) ??
-            classifyExercise(ex.exerciseName);
+            (masterMap[ex.exerciseName] as MuscleCategory | undefined) ?? "back";
         }
         setCategoriesMap(catMap);
 

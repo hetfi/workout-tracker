@@ -8,10 +8,10 @@ import {
   registerNewExercise,
   ManualExercise,
 } from "./actions";
+import { invalidateCategoryMapCache } from "@/repositories/exercises";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
-  classifyExercise,
   MuscleCategory,
   CATEGORY_LABELS,
   CATEGORY_COLORS,
@@ -80,7 +80,7 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
   }, [showCustomInput]);
 
   const effectiveCategory = (e: { name: string; muscle_category: string | null }) =>
-    (e.muscle_category as MuscleCategory) ?? classifyExercise(e.name);
+    (e.muscle_category as MuscleCategory) ?? "back";
 
   const filteredExercises = pastExercises.filter(
     (e) => effectiveCategory(e) === (activeTab as MuscleCategory)
@@ -120,6 +120,8 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
     // 種目マスターに登録（失敗しても続行）
     try {
       await registerNewExercise(name, muscleCategory, newExerciseIsOneArm, newExerciseIsDuration);
+      // クライアントキャッシュを無効化して次回 TodayView ロード時に最新データを取得させる
+      invalidateCategoryMapCache();
       // ローカルリストにも追加
       setPastExercises((prev) => [
         ...prev,
