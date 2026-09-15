@@ -50,7 +50,7 @@ export function SetRow({ set, onTap, onDelete, isDuration = false }: SetRowProps
         </span>
 
         {/* Values */}
-        <div className="flex-1 flex items-baseline gap-2">
+        <div className="flex-1 flex items-baseline gap-2 whitespace-nowrap overflow-hidden">
           {isDuration ? (
             <span
               className={cn(

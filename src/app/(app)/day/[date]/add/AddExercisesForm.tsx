@@ -5,6 +5,7 @@ import {
   getPastExercises,
   addExercisesForDate,
   addExercisesToSession,
+  registerNewExercise,
   ManualExercise,
 } from "./actions";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +28,7 @@ interface AddExercisesFormProps {
 interface SelectedExercise extends ManualExercise {
   key: number;
   isOneArm: boolean;
+  isDuration: boolean;
   muscleCategory: MuscleCategory;
 }
 
@@ -46,7 +48,7 @@ type TabKey = (typeof TABS)[number]["key"];
 
 export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel }: AddExercisesFormProps) {
   const [pastExercises, setPastExercises] = useState<
-    { id: string; name: string; muscle_category: string | null; is_one_arm: boolean }[]
+    { id: string; name: string; muscle_category: string | null; is_one_arm: boolean; is_duration: boolean }[]
   >([]);
   const [activeTab, setActiveTab] = useState<TabKey>("chest");
   const [selected, setSelected] = useState<SelectedExercise[]>([]);
@@ -55,6 +57,11 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const customInputRef = useRef<HTMLInputElement>(null);
+
+  // 新規種目登録ポップアップ
+  const [newExercisePending, setNewExercisePending] = useState<{ name: string; muscleCategory: MuscleCategory } | null>(null);
+  const [newExerciseIsOneArm, setNewExerciseIsOneArm] = useState(false);
+  const [newExerciseIsDuration, setNewExerciseIsDuration] = useState(false);
 
   useEffect(() => {
     getPastExercises().then(setPastExercises);
@@ -81,19 +88,48 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
 
   const selectedNames = new Set(selected.map((e) => e.name));
 
-  const addExercise = (name: string, isOneArm: boolean = false, cat?: MuscleCategory) => {
+  const addExercise = (name: string, isOneArm: boolean = false, cat?: MuscleCategory, isDuration: boolean = false) => {
     if (selectedNames.has(name)) return;
     const muscleCategory = cat ?? (activeTab as MuscleCategory);
     setSelected((prev) => [
       ...prev,
-      { key: keyCounter++, name, sets: 3, repsMin: 8, repsMax: 12, isOneArm, muscleCategory },
+      { key: keyCounter++, name, sets: 3, repsMin: 8, repsMax: 12, isOneArm, isDuration, muscleCategory },
     ]);
   };
 
   const addCustom = () => {
     const name = customName.trim();
     if (!name) return;
-    addExercise(name, false, activeTab as MuscleCategory);
+    // 既存種目リストにない場合はポップアップで種目属性を選択させる
+    const existingInMaster = pastExercises.find((e) => e.name === name);
+    if (existingInMaster) {
+      addExercise(name, Boolean(existingInMaster.is_one_arm), activeTab as MuscleCategory, Boolean(existingInMaster.is_duration));
+      setCustomName("");
+      setShowCustomInput(false);
+    } else {
+      // 新規種目: ポップアップ表示
+      setNewExercisePending({ name, muscleCategory: activeTab as MuscleCategory });
+      setNewExerciseIsOneArm(false);
+      setNewExerciseIsDuration(false);
+    }
+  };
+
+  const confirmNewExercise = async () => {
+    if (!newExercisePending) return;
+    const { name, muscleCategory } = newExercisePending;
+    // 種目マスターに登録（失敗しても続行）
+    try {
+      await registerNewExercise(name, muscleCategory, newExerciseIsOneArm, newExerciseIsDuration);
+      // ローカルリストにも追加
+      setPastExercises((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), name, muscle_category: muscleCategory, is_one_arm: newExerciseIsOneArm, is_duration: newExerciseIsDuration },
+      ]);
+    } catch {
+      // silent: 追加自体は続行する
+    }
+    addExercise(name, newExerciseIsOneArm, muscleCategory, newExerciseIsDuration);
+    setNewExercisePending(null);
     setCustomName("");
     setShowCustomInput(false);
   };
@@ -125,6 +161,72 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
 
   return (
     <div className="space-y-5">
+      {/* 新規種目登録ポップアップ */}
+      {newExercisePending && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setNewExercisePending(null); }}
+        >
+          <div
+            className="w-full max-w-md rounded-t-2xl p-6 space-y-5"
+            style={{ backgroundColor: "#1C1C2E", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <div>
+              <p className="text-xs font-medium mb-0.5" style={{ color: "#8E8E93" }}>新規種目を追加</p>
+              <p className="text-lg font-semibold text-white">{newExercisePending.name}</p>
+              <p className="text-xs mt-0.5" style={{ color: CATEGORY_COLORS[newExercisePending.muscleCategory] }}>
+                {CATEGORY_LABELS[newExercisePending.muscleCategory]}
+              </p>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={() => setNewExerciseIsDuration((v) => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-xl"
+                style={{ backgroundColor: newExerciseIsDuration ? "rgba(202,255,77,0.12)" : "#2C2C2E", border: `1px solid ${newExerciseIsDuration ? "rgba(202,255,77,0.4)" : "rgba(255,255,255,0.08)"}` }}
+              >
+                <span className="text-sm text-white">時間で記録（秒・分）</span>
+                <span
+                  className="w-5 h-5 rounded flex items-center justify-center text-xs font-bold"
+                  style={newExerciseIsDuration ? { backgroundColor: "#CAFF4D", color: "#0D0D0F" } : { border: "1.5px solid #48484A" }}
+                >
+                  {newExerciseIsDuration ? "✓" : ""}
+                </span>
+              </button>
+              <button
+                onClick={() => setNewExerciseIsOneArm((v) => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-xl"
+                style={{ backgroundColor: newExerciseIsOneArm ? "rgba(202,255,77,0.12)" : "#2C2C2E", border: `1px solid ${newExerciseIsOneArm ? "rgba(202,255,77,0.4)" : "rgba(255,255,255,0.08)"}` }}
+              >
+                <span className="text-sm text-white">片側ずつ記録（左右別々）</span>
+                <span
+                  className="w-5 h-5 rounded flex items-center justify-center text-xs font-bold"
+                  style={newExerciseIsOneArm ? { backgroundColor: "#CAFF4D", color: "#0D0D0F" } : { border: "1.5px solid #48484A" }}
+                >
+                  {newExerciseIsOneArm ? "✓" : ""}
+                </span>
+              </button>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setNewExercisePending(null)}
+                className="flex-1 py-3 rounded-xl text-sm font-medium"
+                style={{ backgroundColor: "#3A3A3C", color: "#8E8E93" }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={confirmNewExercise}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold"
+                style={{ backgroundColor: "#CAFF4D", color: "#0D0D0F" }}
+              >
+                追加して登録
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Category tabs */}
       <div className="grid grid-cols-4 gap-2">
         {TABS.map((tab) => {
@@ -165,7 +267,7 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
               return (
                 <button
                   key={e.id}
-                  onClick={() => addExercise(e.name, Boolean(e.is_one_arm))}
+                  onClick={() => addExercise(e.name, Boolean(e.is_one_arm), undefined, Boolean(e.is_duration))}
                   disabled={isSelected}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm border transition-colors"
                   style={

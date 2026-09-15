@@ -38,15 +38,11 @@ export function WorkoutCalendar({
   const currentYear = todayDate.getFullYear();
   const currentMonth = todayDate.getMonth() + 1;
 
-  // 翌月：当月以降は非表示
   const isNextMonthDisabled =
     year > currentYear || (year === currentYear && month >= currentMonth);
-
-  // 前月：oldest より前には戻れない
   const isPrevMonthDisabled =
     year < oldestYear || (year === oldestYear && month <= oldestMonth);
 
-  // クライアントサイドのみでナビ（サーバー呼び出しなし）
   const prevMonth = () => {
     if (isPrevMonthDisabled) return;
     if (month === 1) { setYear(year - 1); setMonth(12); }
@@ -59,53 +55,59 @@ export function WorkoutCalendar({
     else setMonth(month + 1);
   };
 
-  // Build calendar grid
   const firstDay = new Date(`${year}-${String(month).padStart(2, "0")}-01T00:00:00+09:00`);
-  const startDow = firstDay.getDay(); // 0=Sun
+  const startDow = firstDay.getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // Cells: null = padding, number = day
   const cells: (number | null)[] = [
     ...Array(startDow).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
-  // Pad to complete last row
   while (cells.length % 7 !== 0) cells.push(null);
 
   const formatDateStr = (day: number) =>
     `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-  const allCategories = CATEGORY_ORDER;
-
   return (
-    <div className="bg-[#2C2C2E] rounded-xl p-4">
+    <div
+      className="rounded-2xl p-4"
+      style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.06)" }}
+    >
       {/* Month navigation */}
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={prevMonth}
           disabled={isPrevMonthDisabled}
-          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-[#8E8E93] disabled:opacity-40 disabled:cursor-default"
+          className="w-9 h-9 flex items-center justify-center rounded-full transition-colors hover:bg-white/[0.08] active:bg-white/[0.12] text-[#8E8E93] disabled:opacity-30 disabled:cursor-default"
           aria-label="前の月"
         >
-          ◀
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
         </button>
-        <span className="text-base font-semibold text-white">
+        <span className="text-base font-bold text-white tracking-wide">
           {year}年{month}月
         </span>
         <button
           onClick={nextMonth}
           disabled={isNextMonthDisabled}
-          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/[0.08] text-[#8E8E93] disabled:opacity-40 disabled:cursor-default"
+          className="w-9 h-9 flex items-center justify-center rounded-full transition-colors hover:bg-white/[0.08] active:bg-white/[0.12] text-[#8E8E93] disabled:opacity-30 disabled:cursor-default"
           aria-label="次の月"
         >
-          ▶
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
         </button>
       </div>
 
       {/* Day of week header */}
-      <div className="grid grid-cols-7 mb-1">
+      <div className="grid grid-cols-7 mb-2">
         {DOW_LABELS.map((d) => (
-          <div key={d} className="text-center text-xs font-medium pb-1 text-[#8E8E93]">
+          <div
+            key={d}
+            className="text-center text-xs font-semibold pb-2"
+            style={{ color: "#636366" }}
+          >
             {d}
           </div>
         ))}
@@ -121,40 +123,53 @@ export function WorkoutCalendar({
           const categories = initialData[dateStr] ?? [];
           const isToday = dateStr === todayStr;
           const isFuture = dateStr > todayStr;
-
           const handleClick = () => {
-            if (isToday) {
-              router.push("/today");
-            } else if (!isFuture) {
-              router.push(`/day/${dateStr}`);
-            }
-            // 未来日はタップ無効
+            if (isToday) router.push("/today");
+            else if (!isFuture) router.push(`/day/${dateStr}`);
           };
+
+          // Day number style
+          let numBg = "transparent";
+          let numColor = "#FFFFFF";
+          let numWeight = "600";
+          if (isToday) {
+            numBg = "#CAFF4D";
+            numColor = "#0D0D0F";
+            numWeight = "700";
+          } else if (isFuture) {
+            numColor = "#38383A";
+          }
 
           return (
             <button
               key={dateStr}
               onClick={handleClick}
               disabled={isFuture}
-              className="flex flex-col items-center py-1 rounded-lg hover:bg-white/[0.06] disabled:cursor-default disabled:hover:bg-transparent"
+              className="flex flex-col items-center py-1 rounded-xl transition-colors hover:bg-white/[0.05] active:bg-white/[0.08] disabled:cursor-default disabled:hover:bg-transparent"
             >
               {/* Day number */}
-              <div className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium ${
-                isToday
-                  ? "bg-[#CAFF4D] text-black font-bold"
-                  : isFuture
-                  ? "text-[#48484A]"
-                  : "text-white"
-              }`}>
+              <div
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-sm"
+                style={{
+                  backgroundColor: numBg,
+                  color: numColor,
+                  fontWeight: numWeight,
+                }}
+              >
                 {day}
               </div>
-              {/* Category dots */}
-              <div className="flex flex-wrap justify-center gap-0.5 mt-0.5 min-h-[8px]">
-                {categories.slice(0, 4).map((cat) => (
+
+              {/* Category dots — overlap to fit all in one row */}
+              <div className="flex items-center justify-center mt-1 h-2">
+                {categories.map((cat, i) => (
                   <span
                     key={cat}
-                    style={{ backgroundColor: CATEGORY_COLORS[cat] }}
-                    className="w-1.5 h-1.5 rounded-full"
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: CATEGORY_COLORS[cat],
+                      marginLeft: i === 0 ? 0 : "-3px",
+                      boxShadow: "0 0 0 1px #2C2C2E",
+                    }}
                   />
                 ))}
               </div>
@@ -164,14 +179,17 @@ export function WorkoutCalendar({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-4 pt-3 border-t border-white/[0.08]">
-        {allCategories.map((cat) => (
-          <div key={cat} className="flex items-center gap-1">
+      <div
+        className="flex flex-wrap gap-x-3 gap-y-1.5 mt-4 pt-3"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        {CATEGORY_ORDER.map((cat) => (
+          <div key={cat} className="flex items-center gap-1.5">
             <span
+              className="w-2 h-2 rounded-full shrink-0"
               style={{ backgroundColor: CATEGORY_COLORS[cat] }}
-              className="w-2 h-2 rounded-full"
             />
-            <span className="text-xs text-[#8E8E93]">
+            <span className="text-xs" style={{ color: "#8E8E93" }}>
               {CATEGORY_LABELS[cat]}
             </span>
           </div>

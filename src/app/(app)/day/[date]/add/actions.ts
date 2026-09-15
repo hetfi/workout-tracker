@@ -9,10 +9,11 @@ export interface ManualExercise {
   repsMin: number;
   repsMax: number;
   isOneArm?: boolean;
+  isDuration?: boolean;
 }
 
 export async function getPastExercises(): Promise<
-  { id: string; name: string; muscle_category: string | null; is_one_arm: boolean }[]
+  { id: string; name: string; muscle_category: string | null; is_one_arm: boolean; is_duration: boolean }[]
 > {
   const supabase = await createClient();
   const {
@@ -22,8 +23,9 @@ export async function getPastExercises(): Promise<
 
   const { data } = await supabase
     .from("exercises")
-    .select("id, name, muscle_category, is_one_arm")
+    .select("id, name, muscle_category, is_one_arm, is_duration")
     .eq("user_id", user.id)
+    .is("deleted_at", null)
     .order("name")
     .limit(200);
 
@@ -32,7 +34,40 @@ export async function getPastExercises(): Promise<
     name: row.name,
     muscle_category: row.muscle_category ?? null,
     is_one_arm: Boolean(row.is_one_arm),
+    is_duration: Boolean(row.is_duration),
   }));
+}
+
+/** 手動追加した新規種目を種目マスターに登録する */
+export async function registerNewExercise(
+  name: string,
+  muscleCategory: string,
+  isOneArm: boolean,
+  isDuration: boolean
+): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  // 同名種目が存在する場合は何もしない（upsert with ignoreDuplicates）
+  await supabase.from("exercises").upsert(
+    {
+      user_id: user.id,
+      name,
+      muscle_category: muscleCategory,
+      is_one_arm: isOneArm,
+      is_duration: isDuration,
+      default_rest_seconds: 90,
+      exercise_type: isDuration ? "cardio" : "strength",
+      weight_type: "barbell",
+      small_weight_step: 2.5,
+      large_weight_step: 5,
+      target_muscles: [],
+    },
+    { onConflict: "user_id,name", ignoreDuplicates: true }
+  );
 }
 
 /**
@@ -223,6 +258,7 @@ export async function addManualSession(
     rest_seconds: restMap[e.name] ?? 90,
     sort_order: i,
     is_one_arm: e.isOneArm ?? false,
+    is_duration: e.isDuration ?? false,
   }));
   await supabase.from("workout_session_exercises").insert(sessionExercises);
 
@@ -309,6 +345,7 @@ export async function addExercisesToSession(
     rest_seconds: restMap[e.name] ?? 90,
     sort_order: maxSortOrder + 1 + i,
     is_one_arm: e.isOneArm ?? false,
+    is_duration: e.isDuration ?? false,
   }));
 
   await supabase.from("workout_session_exercises").insert(sessionExercises);

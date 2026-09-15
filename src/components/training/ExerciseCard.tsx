@@ -92,7 +92,7 @@ function OneArmSetRow({
         </span>
 
         {/* Values */}
-        <div className="flex-1 flex items-baseline gap-2">
+        <div className="flex-1 flex items-baseline gap-2 whitespace-nowrap overflow-hidden">
           {isDuration ? (
             <span
               className={cn(
@@ -189,41 +189,51 @@ export function ExerciseCard({
 
   // One-arm: track locally-deleted pending slots (setNumber → side)
   const [deletedOneArmSlots, setDeletedOneArmSlots] = useState<Set<string>>(new Set());
-  // One-arm: ユーザーがセット追加した回数（DBの stale データに左右されない pair 数管理）
-  const [addedPairs, setAddedPairs] = useState(0);
+  // One-arm: アクティブなペア番号リスト（削除・追加によって変動）
+  const [activePairNumbers, setActivePairNumbers] = useState<number[]>(() =>
+    Array.from({ length: sessionExercise.plannedSets }, (_, i) => i + 1)
+  );
 
   // Delete a pending one-arm slot that has no DB record yet.
-  // Hides the slot in the UI and decrements planned_sets in DB when a full pair (L+R) is removed.
-  // Root cause fix: previously used sessionExercise.plannedSets (static prop) and
-  // deletedOneArmSlots.size (stale closure), causing wrong planned_sets values on
-  // multiple deletions. Now computed inside the setState callback for correctness.
+  // Removes the set from setsMap and tracks deletion. When both sides of a pair are deleted,
+  // removes the pair from activePairNumbers (fixing set number gaps on re-add).
   const handleDeletePendingOneArmSlot = useCallback(
     (slotNumber: number, side: "L" | "R") => {
       const key = `${slotNumber}-${side}`;
-      setDeletedOneArmSlots((prev) => {
-        if (prev.has(key)) return prev; // already deleted
-        const next = new Set([...prev, key]);
+      const otherSide = side === "L" ? "R" : "L";
+      const otherKey = `${slotNumber}-${otherSide}`;
 
-        // A set PAIR is fully deleted only when BOTH sides are in the deleted set.
-        // Only decrement planned_sets for fully-deleted pairs (not individual sides).
-        let fullyDeletedPairs = 0;
-        for (let n = 1; n <= sessionExercise.plannedSets; n++) {
-          if (next.has(`${n}-L`) && next.has(`${n}-R`)) fullyDeletedPairs++;
-        }
-        const newPlannedSets = Math.max(1, sessionExercise.plannedSets - fullyDeletedPairs);
+      // Remove this pending set from setsMap immediately
+      onSetsUpdate(sets.filter((s) => !(s.setNumber === slotNumber && s.side === side && s.status === "pending")));
 
+      // Check if other side is already gone (in deletedOneArmSlots or not in setsMap)
+      const otherIsGone =
+        deletedOneArmSlots.has(otherKey) ||
+        !sets.some((s) => s.setNumber === slotNumber && s.side === otherSide && s.status === "pending");
+
+      if (otherIsGone) {
+        // Full pair deleted: remove from activePairNumbers, clear slot markers
+        setActivePairNumbers((prev) => prev.filter((n) => n !== slotNumber));
+        setDeletedOneArmSlots((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          next.delete(otherKey);
+          return next;
+        });
         // Async DB update — fire-and-forget (non-critical)
         void (async () => {
+          const newPlannedSets = Math.max(1, activePairNumbers.filter((n) => n !== slotNumber).length);
           await createClient()
             .from("workout_session_exercises")
             .update({ planned_sets: newPlannedSets })
             .eq("id", sessionExercise.id);
         })();
-
-        return next;
-      });
+      } else {
+        // Only this side deleted — hide it, wait for other side
+        setDeletedOneArmSlots((prev) => new Set([...prev, key]));
+      }
     },
-    [sessionExercise.id, sessionExercise.plannedSets]
+    [sessionExercise.id, sets, deletedOneArmSlots, activePairNumbers, onSetsUpdate]
   );
 
   // Hide a completed one-arm slot immediately after onDeleteSet removes it from setsMap.
@@ -386,28 +396,21 @@ export function ExerciseCard({
   // isDuration 種目は常に 1 セット扱い
   const effectivePlannedSets = sessionExercise.isDuration ? 1 : sessionExercise.plannedSets;
 
-  // 片側モード: plannedSets + ユーザーが追加したペア数でペア総数を管理。
-  // DB に stale な高 setNumber セットが残っていても影響を受けない。
-  const oneArmPairCount = isOneArmLocal
-    ? effectivePlannedSets + addedPairs
-    : effectivePlannedSets;
-
   // Progress counts
   let completedCount: number;
   let totalCount: number;
 
   if (isOneArmLocal) {
     // L と R をそれぞれ独立した1セットとして数える（右2・左2 = 合計4セット）。
-    // totalCount = ペア数 × 2 − 個別削除済み数（削除された完了セット含む）。
-    // completedCount = 削除されていない完了済みの L/R セット数。
+    // activePairNumbers がアクティブなペアを管理。deletedOneArmSlots は片側のみ削除中のスロット。
     completedCount = sets.filter(
       (s) =>
         (s.side === "L" || s.side === "R") &&
-        s.setNumber <= oneArmPairCount &&
+        activePairNumbers.includes(s.setNumber) &&
         s.status === "completed" &&
         !deletedOneArmSlots.has(`${s.setNumber}-${s.side}`)
     ).length;
-    totalCount = Math.max(0, oneArmPairCount * 2 - deletedOneArmSlots.size);
+    totalCount = Math.max(0, activePairNumbers.length * 2 - deletedOneArmSlots.size);
   } else {
     completedCount = sets.filter((s) => s.status === "completed").length;
     totalCount = sets.length;
@@ -569,11 +572,8 @@ export function ExerciseCard({
       {/* Sets */}
       <div className="space-y-2">
         {isOneArmLocal ? (
-          // One-arm mode: L and R row for each pair (derived from actual sets)
-          Array.from(
-            { length: oneArmPairCount },
-            (_, i) => i + 1
-          ).flatMap((n) => {
+          // One-arm mode: L and R row for each active pair
+          activePairNumbers.flatMap((n) => {
             const lSet = sets.find((s) => s.setNumber === n && s.side === "L");
             const rSet = sets.find((s) => s.setNumber === n && s.side === "R");
             const presetSet = sets.find((s) => s.setNumber === n);
@@ -652,9 +652,11 @@ export function ExerciseCard({
         <button
           onClick={() => {
             if (isOneArmLocal) {
-              // 次のセット番号を ExerciseCard 側で管理して親に渡す
-              const nextSN = oneArmPairCount + 1;
-              setAddedPairs((p) => p + 1);
+              // 次のセット番号 = 現在のアクティブペアの最大番号 + 1
+              const nextSN = activePairNumbers.length > 0
+                ? Math.max(...activePairNumbers) + 1
+                : 1;
+              setActivePairNumbers((prev) => [...prev, nextSN]);
               onAddSet(nextSN);
             } else {
               onAddSet();
