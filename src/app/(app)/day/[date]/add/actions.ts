@@ -248,6 +248,8 @@ export async function addManualSession(
   if (sessionError || !session) throw new Error("Failed to create session");
 
   // Create session exercises
+  // Note: is_duration is NOT a column in workout_session_exercises —
+  //       it is read from the exercises master table at runtime.
   const sessionExercises = exercises.map((e, i) => ({
     user_id: user.id,
     session_id: session.id,
@@ -258,7 +260,6 @@ export async function addManualSession(
     rest_seconds: restMap[e.name] ?? 90,
     sort_order: i,
     is_one_arm: e.isOneArm ?? false,
-    is_duration: e.isDuration ?? false,
   }));
   await supabase.from("workout_session_exercises").insert(sessionExercises);
 
@@ -345,7 +346,6 @@ export async function addExercisesToSession(
     rest_seconds: restMap[e.name] ?? 90,
     sort_order: maxSortOrder + 1 + i,
     is_one_arm: e.isOneArm ?? false,
-    is_duration: e.isDuration ?? false,
   }));
 
   await supabase.from("workout_session_exercises").insert(sessionExercises);
