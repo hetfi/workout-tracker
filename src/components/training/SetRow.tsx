@@ -11,11 +11,14 @@ interface SetRowProps {
   onDelete?: () => void;
   /** When true, display reps as minutes instead of weight×reps */
   isDuration?: boolean;
+  /** Override displayed set number (sequential after deletion) */
+  displaySetNumber?: number;
 }
 
-export function SetRow({ set, onTap, onDelete, isDuration = false }: SetRowProps) {
+export function SetRow({ set, onTap, onDelete, isDuration = false, displaySetNumber }: SetRowProps) {
   const isCompleted = set.status === "completed";
   const isSkipped = set.status === "skipped";
+  const displayNum = displaySetNumber ?? set.setNumber;
 
   return (
     <div className="flex items-center gap-2">
@@ -35,8 +38,8 @@ export function SetRow({ set, onTap, onDelete, isDuration = false }: SetRowProps
         )}
         aria-label={
           isDuration
-            ? `${set.setNumber}セット目: ${set.reps}分 ${isCompleted ? "完了" : "未完了"}`
-            : `${set.setNumber}セット目: 重量${set.weight}kg 回数${set.reps}回 ${isCompleted ? "完了" : "未完了"}`
+            ? `${displayNum}セット目: ${set.reps}分 ${isCompleted ? "完了" : "未完了"}`
+            : `${displayNum}セット目: 重量${set.weight}kg 回数${set.reps}回 ${isCompleted ? "完了" : "未完了"}`
         }
       >
         {/* Set number */}
@@ -46,7 +49,7 @@ export function SetRow({ set, onTap, onDelete, isDuration = false }: SetRowProps
             isCompleted ? "text-[#CAFF4D]" : "text-[#8E8E93]"
           )}
         >
-          {set.setNumber}
+          {displayNum}
         </span>
 
         {/* Values */}
@@ -107,7 +110,7 @@ export function SetRow({ set, onTap, onDelete, isDuration = false }: SetRowProps
         <button
           onClick={() => onDelete()}
           className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-[#8E8E93] hover:text-red-400 hover:bg-white/[0.08] transition-colors"
-          aria-label={`${set.setNumber}セット目を削除`}
+          aria-label={`${displayNum}セット目を削除`}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/>

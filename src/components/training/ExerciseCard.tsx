@@ -573,7 +573,9 @@ export function ExerciseCard({
       <div className="space-y-2">
         {isOneArmLocal ? (
           // One-arm mode: L and R row for each active pair
-          activePairNumbers.flatMap((n) => {
+          // displayNum は連番（配列インデックス+1）、n は内部の実際のペア番号（DB用）
+          activePairNumbers.flatMap((n, pairIdx) => {
+            const displayNum = pairIdx + 1;
             const lSet = sets.find((s) => s.setNumber === n && s.side === "L");
             const rSet = sets.find((s) => s.setNumber === n && s.side === "R");
             const presetSet = sets.find((s) => s.setNumber === n);
@@ -584,7 +586,7 @@ export function ExerciseCard({
               rows.push(
                 <OneArmSetRow
                   key={lKey}
-                  setNumber={n}
+                  setNumber={displayNum}
                   side="L"
                   set={lSet}
                   defaultWeight={presetSet?.weight ?? 0}
@@ -595,8 +597,6 @@ export function ExerciseCard({
                     onDeleteSet
                       ? lSet
                         ? () => {
-                            // 完了済みセット: DBから削除 + UIスロットを即座に非表示
-                            // （非表示にしないと pending として再表示され2回タップ必要になる）
                             onDeleteSet(lSet.clientId);
                             handleHideOneArmSlot(n, "L");
                           }
@@ -610,7 +610,7 @@ export function ExerciseCard({
               rows.push(
                 <OneArmSetRow
                   key={rKey}
-                  setNumber={n}
+                  setNumber={displayNum}
                   side="R"
                   set={rSet}
                   defaultWeight={presetSet?.weight ?? 0}
@@ -621,7 +621,6 @@ export function ExerciseCard({
                     onDeleteSet
                       ? rSet
                         ? () => {
-                            // 完了済みセット: DBから削除 + UIスロットを即座に非表示
                             onDeleteSet(rSet.clientId);
                             handleHideOneArmSlot(n, "R");
                           }
@@ -634,11 +633,12 @@ export function ExerciseCard({
             return rows;
           })
         ) : (
-          // Normal mode
+          // Normal mode: displaySetNumber = 配列順序（連番）
           sets.map((s, i) => (
             <SetRow
               key={s.clientId}
               set={s}
+              displaySetNumber={i + 1}
               isDuration={sessionExercise.isDuration}
               onTap={() => handleSetTap(i)}
               onDelete={onDeleteSet ? () => onDeleteSet(s.clientId) : undefined}
@@ -677,7 +677,7 @@ export function ExerciseCard({
             setPickerOpen(false);
             setActiveSetIndex(null);
           }}
-          setNumber={activeSet.setNumber}
+          setNumber={activeSetIndex !== null ? activeSetIndex + 1 : activeSet.setNumber}
           exerciseName={sessionExercise.exerciseName}
           weight={activeSet.weight}
           reps={activeSet.reps}
@@ -700,7 +700,7 @@ export function ExerciseCard({
             setActiveSetNumber(null);
             setActiveSide(null);
           }}
-          setNumber={activeSetNumber}
+          setNumber={activePairNumbers.indexOf(activeSetNumber) + 1 || activeSetNumber}
           exerciseName={sessionExercise.exerciseName}
           weight={oneArmPickerWeight}
           reps={oneArmPickerReps}
