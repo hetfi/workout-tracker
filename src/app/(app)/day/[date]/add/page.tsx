@@ -21,10 +21,10 @@ export default async function AddExercisesPage({ params, searchParams }: PagePro
   const backHref = backTo ?? (sessionId ? `/session/${sessionId}` : isPast ? `/day/${date}` : "/today");
 
   // 過去日: 種目追加後はセッション録画ページへ（実際にセット記録できるように）
-  // 当日: backTo または既存の遷移先
+  // 当日: セッションがあればそこへ、なければ /today （backTo は戻るボタン用なのでここでは使わない）
   const saveTo = isPast
     ? undefined                // server action が /session/${id} にリダイレクト
-    : backTo ?? (sessionId ? `/session/${sessionId}` : "/today");
+    : sessionId ? `/session/${sessionId}` : "/today";
 
   const title = isPast ? "実績を登録" : sessionId ? "種目を追加" : "トレーニングを追加";
   const description = isPast
