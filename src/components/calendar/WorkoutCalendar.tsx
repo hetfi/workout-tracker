@@ -68,6 +68,10 @@ export function WorkoutCalendar({
   const formatDateStr = (day: number) =>
     `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
+  // 過去日のセル背景色（カード #2C2C2E に 7% 白を重ねた値）
+  const PAST_CELL_BG = "#3B3B3D";
+  const FUTURE_CELL_BG = "rgba(255,255,255,0.03)";
+
   return (
     <div
       className="rounded-2xl p-4"
@@ -100,12 +104,12 @@ export function WorkoutCalendar({
         </button>
       </div>
 
-      {/* Day of week header */}
-      <div className="grid grid-cols-7 mb-2">
+      {/* Day of week header — gap-x-1 でセルと列幅を合わせる */}
+      <div className="grid grid-cols-7 gap-x-1 mb-1.5">
         {DOW_LABELS.map((d) => (
           <div
             key={d}
-            className="text-center text-xs font-semibold pb-2"
+            className="text-center text-xs font-semibold py-1"
             style={{ color: "#636366" }}
           >
             {d}
@@ -114,61 +118,53 @@ export function WorkoutCalendar({
       </div>
 
       {/* Calendar grid */}
-      <div className="grid grid-cols-7 gap-y-1">
+      <div className="grid grid-cols-7 gap-1">
         {cells.map((day, idx) => {
           if (day === null) {
             return <div key={`pad-${idx}`} />;
           }
+
           const dateStr = formatDateStr(day);
           const categories = initialData[dateStr] ?? [];
           const isToday = dateStr === todayStr;
           const isFuture = dateStr > todayStr;
+
           const handleClick = () => {
             if (isToday) router.push("/today");
             else if (!isFuture) router.push(`/day/${dateStr}`);
           };
 
-          // Day number style
-          let numBg = "transparent";
-          let numColor = "#FFFFFF";
-          let numWeight = "600";
-          if (isToday) {
-            numBg = "#CAFF4D";
-            numColor = "#0D0D0F";
-            numWeight = "700";
-          } else if (isFuture) {
-            numColor = "#38383A";
-          }
+          const cellBg = isToday ? "#CAFF4D" : isFuture ? FUTURE_CELL_BG : PAST_CELL_BG;
+          const textColor = isToday ? "#0D0D0F" : isFuture ? "#555558" : "#FFFFFF";
+          // ドットのセパレータ色 = セル背景色に合わせる
+          const dotShadowColor = isToday ? "#CAFF4D" : isFuture ? "#2C2C2E" : PAST_CELL_BG;
 
           return (
             <button
               key={dateStr}
               onClick={handleClick}
               disabled={isFuture}
-              className="flex flex-col items-center py-1 rounded-xl transition-colors hover:bg-white/[0.05] active:bg-white/[0.08] disabled:cursor-default disabled:hover:bg-transparent"
+              className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg transition-opacity active:opacity-70 disabled:cursor-default"
+              style={{ backgroundColor: cellBg }}
             >
               {/* Day number */}
-              <div
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-sm"
-                style={{
-                  backgroundColor: numBg,
-                  color: numColor,
-                  fontWeight: numWeight,
-                }}
+              <span
+                className="text-sm leading-none"
+                style={{ color: textColor, fontWeight: isToday ? 700 : 600 }}
               >
                 {day}
-              </div>
+              </span>
 
-              {/* Category dots — overlap to fit all in one row */}
-              <div className="flex items-center justify-center mt-1 h-2">
+              {/* Category dots — 常に高さを確保してセルの高さを揃える */}
+              <div className="flex items-center justify-center h-1.5">
                 {categories.map((cat, i) => (
                   <span
                     key={cat}
-                    className="w-2 h-2 rounded-full shrink-0"
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
                     style={{
-                      backgroundColor: CATEGORY_COLORS[cat],
-                      marginLeft: i === 0 ? 0 : "-3px",
-                      boxShadow: "0 0 0 1px #2C2C2E",
+                      backgroundColor: isToday ? "rgba(0,0,0,0.35)" : CATEGORY_COLORS[cat],
+                      marginLeft: i === 0 ? 0 : "-2px",
+                      boxShadow: `0 0 0 1px ${dotShadowColor}`,
                     }}
                   />
                 ))}
