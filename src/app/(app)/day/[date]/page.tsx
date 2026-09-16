@@ -40,26 +40,6 @@ export default async function DayPage({ params }: PageProps) {
 
   const sessionList = sessions ?? [];
 
-  // 完了セットがあるセッションIDを把握（0セットのセッションを編集リストから除外するため）
-  const allSessionIds = sessionList.map((s) => s.id);
-  const sessionsWithSets = new Set<string>();
-  if (allSessionIds.length > 0) {
-    const { data: setRows } = await supabase
-      .from("workout_sets")
-      .select("session_id")
-      .in("session_id", allSessionIds)
-      .eq("status", "completed");
-    for (const r of setRows ?? []) sessionsWithSets.add(r.session_id);
-  }
-
-  // 編集リストに表示するセッション：完了セットがある or アクティブ
-  const editableSessions = sessionList.filter(
-    (s) =>
-      s.status === "in_progress" ||
-      s.status === "not_started" ||
-      sessionsWithSets.has(s.id)
-  );
-
   if (sessionList.length === 0) {
     return (
       <div className="py-6 space-y-5">
@@ -90,20 +70,31 @@ export default async function DayPage({ params }: PageProps) {
 
   const sessionIds = sessionList.map((s) => s.id);
 
-  // 2. セッション種目（全セッション分）
-  const { data: sessionExercises } = await supabase
-    .from("workout_session_exercises")
-    .select("id, session_id, exercise_name, sort_order")
-    .in("session_id", sessionIds)
-    .order("sort_order");
+  // 2+3. セッション種目と完了セットを並列取得
+  const [{ data: sessionExercises }, { data: completedSets }] = await Promise.all([
+    supabase
+      .from("workout_session_exercises")
+      .select("id, session_id, exercise_name, sort_order")
+      .in("session_id", sessionIds)
+      .order("sort_order"),
+    supabase
+      .from("workout_sets")
+      .select("session_exercise_id, session_id, set_number, weight, reps, side")
+      .in("session_id", sessionIds)
+      .eq("status", "completed")
+      .order("set_number"),
+  ]);
 
-  // 3. 完了セット（重量・回数含む）
-  const { data: completedSets } = await supabase
-    .from("workout_sets")
-    .select("session_exercise_id, session_id, set_number, weight, reps, side")
-    .in("session_id", sessionIds)
-    .eq("status", "completed")
-    .order("set_number");
+  // completedSets から sessionsWithSets を派生（専用クエリ不要）
+  const sessionsWithSets = new Set((completedSets ?? []).map((r) => r.session_id));
+
+  // 編集リストに表示するセッション：完了セットがある or アクティブ
+  const editableSessions = sessionList.filter(
+    (s) =>
+      s.status === "in_progress" ||
+      s.status === "not_started" ||
+      sessionsWithSets.has(s.id)
+  );
 
   // 4. exercises master でカテゴリ取得
   const allExerciseNames = [

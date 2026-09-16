@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORY_COLORS, CATEGORY_LABELS, CATEGORY_ORDER, MuscleCategory } from "@/lib/muscleCategory";
+import { useEffect } from "react";
 
 interface WorkoutCalendarProps {
   initialYear: number;
@@ -32,6 +33,12 @@ export function WorkoutCalendar({
   const router = useRouter();
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);
+  const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+
+  // ページに戻ってきたときにローディング状態をリセット
+  useEffect(() => {
+    setNavigatingTo(null);
+  }, []);
 
   const todayStr = getTodayJST();
   const todayDate = new Date(todayStr + "T00:00:00+09:00");
@@ -130,10 +137,16 @@ export function WorkoutCalendar({
           const isFuture = dateStr > todayStr;
 
           const handleClick = () => {
-            if (isToday) router.push("/today");
-            else if (!isFuture) router.push(`/day/${dateStr}`);
+            if (isToday) {
+              setNavigatingTo("today");
+              router.push("/today");
+            } else if (!isFuture) {
+              setNavigatingTo(dateStr);
+              router.push(`/day/${dateStr}`);
+            }
           };
 
+          const isNavigating = navigatingTo === dateStr || (isToday && navigatingTo === "today");
           const cellBg = isToday ? "#CAFF4D" : isFuture ? FUTURE_CELL_BG : PAST_CELL_BG;
           const textColor = isToday ? "#0D0D0F" : isFuture ? "#555558" : "#FFFFFF";
           // ドットのセパレータ色 = セル背景色に合わせる
@@ -143,9 +156,13 @@ export function WorkoutCalendar({
             <button
               key={dateStr}
               onClick={handleClick}
-              disabled={isFuture}
+              disabled={isFuture || isNavigating}
               className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg transition-opacity active:opacity-70 disabled:cursor-default"
-              style={{ backgroundColor: cellBg }}
+              style={{
+                backgroundColor: cellBg,
+                opacity: isNavigating ? 0.55 : 1,
+                transition: "opacity 0.15s",
+              }}
             >
               {/* Day number */}
               <span
@@ -155,19 +172,26 @@ export function WorkoutCalendar({
                 {day}
               </span>
 
-              {/* Category dots — 常に高さを確保してセルの高さを揃える */}
+              {/* Category dots or loading pulse */}
               <div className="flex items-center justify-center h-1.5">
-                {categories.map((cat, i) => (
+                {isNavigating ? (
                   <span
-                    key={cat}
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: isToday ? "rgba(0,0,0,0.35)" : CATEGORY_COLORS[cat],
-                      marginLeft: i === 0 ? 0 : "-2px",
-                      boxShadow: `0 0 0 1px ${dotShadowColor}`,
-                    }}
+                    className="w-1.5 h-1.5 rounded-full animate-pulse"
+                    style={{ backgroundColor: isToday ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.5)" }}
                   />
-                ))}
+                ) : (
+                  categories.map((cat, i) => (
+                    <span
+                      key={cat}
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{
+                        backgroundColor: isToday ? "rgba(0,0,0,0.35)" : CATEGORY_COLORS[cat],
+                        marginLeft: i === 0 ? 0 : "-2px",
+                        boxShadow: `0 0 0 1px ${dotShadowColor}`,
+                      }}
+                    />
+                  ))
+                )}
               </div>
             </button>
           );
