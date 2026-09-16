@@ -121,20 +121,30 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
   const confirmNewExercise = async () => {
     if (!newExercisePending) return;
     const { name, muscleCategory } = newExercisePending;
-    const result = await registerNewExercise(name, muscleCategory, newExerciseIsOneArm, newExerciseIsDuration, newExerciseRestSeconds);
-    if (result?.error) {
-      setError(`種目マスターへの登録に失敗しました（${result.error}）。種目はセッションに追加されますが、次回以降の表示が正しくならない場合があります。`);
-    } else {
-      // 登録成功時のみローカルリストを更新
-      setPastExercises((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), name, muscle_category: muscleCategory, is_one_arm: newExerciseIsOneArm, is_duration: newExerciseIsDuration },
-      ]);
-    }
-    addExercise(name, newExerciseIsOneArm, muscleCategory, newExerciseIsDuration);
+    const isOneArm = newExerciseIsOneArm;
+    const isDuration = newExerciseIsDuration;
+    const restSeconds = newExerciseRestSeconds;
+
+    // ポップアップを即座に閉じて二重タップを防ぐ
     setNewExercisePending(null);
     setCustomName("");
     setShowCustomInput(false);
+
+    const result = await registerNewExercise(name, muscleCategory, isOneArm, isDuration, restSeconds);
+    if (result?.error) {
+      setError(`種目マスターへの登録に失敗しました（${result.error}）。種目はセッションに追加されますが、次回以降の表示が正しくならない場合があります。`);
+    } else {
+      setPastExercises((prev) =>
+        prev.some((e) => e.name === name)
+          ? prev
+          : [...prev, { id: crypto.randomUUID(), name, muscle_category: muscleCategory, is_one_arm: isOneArm, is_duration: isDuration }]
+      );
+    }
+    // selectedNames はレンダリング時点の値で stale になるため、関数型更新で重複チェック
+    setSelected((prev) => {
+      if (prev.some((e) => e.name === name)) return prev;
+      return [...prev, { key: keyCounter++, name, sets: 3, repsMin: 8, repsMax: 12, isOneArm, isDuration, muscleCategory }];
+    });
   };
 
   const remove = (key: number) => {
