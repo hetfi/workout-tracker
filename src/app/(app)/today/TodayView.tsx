@@ -16,7 +16,7 @@ import {
   deleteSessionExercise,
   deleteWorkoutSet,
 } from "@/repositories/workoutSessions";
-import { getExerciseCategoryMap, getExerciseDurationMap } from "@/repositories/exercises";
+import { getExerciseMasterMaps } from "@/repositories/exercises";
 import { createTimer } from "@/repositories/restTimers";
 import { getUserSettings } from "@/repositories/userSettings";
 import {
@@ -80,14 +80,15 @@ export function TodayView({
     const load = async () => {
       setLoading(true);
       try {
-        // 並列で全データを一括取得
-        const [allExercises, allSets, masterMap, durationMap, userSettings] = await Promise.all([
+        // 並列で全データを一括取得（masterMaps は 1 クエリで category + duration 両方取得）
+        const [allExercises, allSets, masterMaps, userSettings] = await Promise.all([
           getSessionExercisesForSessions(sessionIds),
           getSessionSetsForSessions(sessionIds),
-          getExerciseCategoryMap(),
-          getExerciseDurationMap(),
+          getExerciseMasterMaps(),
           getUserSettings(),
         ]);
+        const masterMap = masterMaps.categoryMap;
+        const durationMap = masterMaps.durationMap;
 
         // isDuration をマスターから上書き
         const enrichedExercises = allExercises.map((ex) => ({

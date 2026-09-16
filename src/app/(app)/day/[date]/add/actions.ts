@@ -51,23 +51,32 @@ export async function registerNewExercise(
   } = await supabase.auth.getUser();
   if (!user) return;
 
-  // 同名種目が存在する場合は何もしない（upsert with ignoreDuplicates）
-  await supabase.from("exercises").upsert(
-    {
-      user_id: user.id,
-      name,
-      muscle_category: muscleCategory,
-      is_one_arm: isOneArm,
-      is_duration: isDuration,
-      default_rest_seconds: 90,
-      exercise_type: isDuration ? "cardio" : "strength",
-      weight_type: "barbell",
-      small_weight_step: 2.5,
-      large_weight_step: 5,
-      target_muscles: [],
-    },
-    { onConflict: "user_id,name", ignoreDuplicates: true }
-  );
+  // 同名種目が既に存在するか確認（upsert の onConflict は DB 制約依存のため select+insert に変更）
+  const { data: existing } = await supabase
+    .from("exercises")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("name", name)
+    .is("deleted_at", null)
+    .limit(1);
+
+  if (existing && existing.length > 0) return;
+
+  const { error } = await supabase.from("exercises").insert({
+    user_id: user.id,
+    name,
+    muscle_category: muscleCategory,
+    is_one_arm: isOneArm,
+    is_duration: isDuration,
+    default_rest_seconds: 90,
+    exercise_type: isDuration ? "cardio" : "strength",
+    weight_type: "barbell",
+    small_weight_step: 2.5,
+    large_weight_step: 5,
+    target_muscles: [],
+  });
+
+  if (error) throw new Error(error.message);
 }
 
 /**

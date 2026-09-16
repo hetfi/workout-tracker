@@ -8,7 +8,6 @@ import {
   registerNewExercise,
   ManualExercise,
 } from "./actions";
-import { invalidateCategoryMapCache } from "@/repositories/exercises";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
@@ -117,18 +116,16 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
   const confirmNewExercise = async () => {
     if (!newExercisePending) return;
     const { name, muscleCategory } = newExercisePending;
-    // 種目マスターに登録（失敗しても続行）
     try {
       await registerNewExercise(name, muscleCategory, newExerciseIsOneArm, newExerciseIsDuration);
-      // クライアントキャッシュを無効化して次回 TodayView ロード時に最新データを取得させる
-      invalidateCategoryMapCache();
-      // ローカルリストにも追加
+      // 登録成功時のみローカルリストを更新（次回 getPastExercises で重複しないように）
       setPastExercises((prev) => [
         ...prev,
         { id: crypto.randomUUID(), name, muscle_category: muscleCategory, is_one_arm: newExerciseIsOneArm, is_duration: newExerciseIsDuration },
       ]);
-    } catch {
-      // silent: 追加自体は続行する
+    } catch (e) {
+      // 登録失敗を error に表示（セッションへの追加は続行）
+      setError(`種目の登録に失敗しました: ${e instanceof Error ? e.message : "不明なエラー"}`);
     }
     addExercise(name, newExerciseIsOneArm, muscleCategory, newExerciseIsDuration);
     setNewExercisePending(null);

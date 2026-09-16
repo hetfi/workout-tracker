@@ -198,22 +198,10 @@ export async function deleteAlias(aliasId: string): Promise<void> {
 }
 
 /**
- * 種目マスターマップ（category + isDuration）を 1 クエリで取得・キャッシュ。
- * deleted_at が null の種目のみ対象。5 分間クライアントサイドキャッシュ。
+ * 種目マスターマップ（category + isDuration）を取得する。
+ * キャッシュなし — 新規種目登録直後も確実に最新データを返す。
  */
-interface ExerciseMasterCache {
-  categoryMap: Record<string, string>;
-  durationMap: Record<string, boolean>;
-}
-let _masterCache: ExerciseMasterCache | null = null;
-let _masterCachedAt = 0;
-const MASTER_CACHE_TTL_MS = 5 * 60 * 1000;
-
-async function getExerciseMasterMaps(): Promise<ExerciseMasterCache> {
-  const now = Date.now();
-  if (_masterCache && now - _masterCachedAt < MASTER_CACHE_TTL_MS) {
-    return _masterCache;
-  }
+async function fetchExerciseMasterMaps(): Promise<{ categoryMap: Record<string, string>; durationMap: Record<string, boolean> }> {
   const supabase = createClient();
   const { data } = await supabase
     .from("exercises")
@@ -225,24 +213,24 @@ async function getExerciseMasterMaps(): Promise<ExerciseMasterCache> {
     if (row.muscle_category) categoryMap[row.name as string] = row.muscle_category as string;
     if (row.is_duration)     durationMap[row.name as string] = true;
   }
-  _masterCache = { categoryMap, durationMap };
-  _masterCachedAt = now;
-  return _masterCache;
+  return { categoryMap, durationMap };
+}
+
+/** categoryMap と durationMap を 1 クエリで取得（TodayView など両方必要な場面で使用） */
+export async function getExerciseMasterMaps(): Promise<{ categoryMap: Record<string, string>; durationMap: Record<string, boolean> }> {
+  return fetchExerciseMasterMaps();
 }
 
 export async function getExerciseCategoryMap(): Promise<Record<string, string>> {
-  return (await getExerciseMasterMaps()).categoryMap;
+  return (await fetchExerciseMasterMaps()).categoryMap;
 }
 
 export async function getExerciseDurationMap(): Promise<Record<string, boolean>> {
-  return (await getExerciseMasterMaps()).durationMap;
+  return (await fetchExerciseMasterMaps()).durationMap;
 }
 
-/** キャッシュを手動で無効化する（種目を追加・更新した後に呼ぶ） */
-export function invalidateCategoryMapCache(): void {
-  _masterCache = null;
-  _masterCachedAt = 0;
-}
+/** 後方互換のため残す（キャッシュなし化により呼び出し不要になったが削除すると import エラーになるため） */
+export function invalidateCategoryMapCache(): void {}
 
 /**
  * Find exercise by name or alias (case-insensitive).
