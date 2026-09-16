@@ -63,8 +63,8 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
   const [newExerciseIsDuration, setNewExerciseIsDuration] = useState(false);
   const [newExerciseRestSeconds, setNewExerciseRestSeconds] = useState(90);
 
-  const REST_OPTIONS = [30, 60, 90, 120, 180, 240, 300] as const;
-  const formatRest = (s: number) => s < 60 ? `${s}秒` : s % 60 === 0 ? `${s / 60}分` : `${Math.floor(s / 60)}分${s % 60}秒`;
+  const REST_OPTIONS = [0, 60, 90, 120, 180] as const;
+  const formatRest = (s: number) => s === 0 ? "なし" : s < 60 ? `${s}秒` : s % 60 === 0 ? `${s / 60}分` : `${Math.floor(s / 60)}分${s % 60}秒`;
 
   useEffect(() => {
     getPastExercises().then(setPastExercises);

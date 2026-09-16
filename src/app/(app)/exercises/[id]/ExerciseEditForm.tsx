@@ -18,6 +18,7 @@ interface ExerciseEditFormProps {
 }
 
 const REST_PRESETS = [
+  { label: "なし", value: 0 },
   { label: "1分", value: 60 },
   { label: "1分30秒", value: 90 },
   { label: "2分", value: 120 },
