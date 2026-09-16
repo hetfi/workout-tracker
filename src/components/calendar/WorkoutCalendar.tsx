@@ -172,26 +172,19 @@ export function WorkoutCalendar({
                 {day}
               </span>
 
-              {/* Category dots or loading pulse */}
+              {/* Category dots */}
               <div className="flex items-center justify-center h-1.5">
-                {isNavigating ? (
+                {categories.map((cat, i) => (
                   <span
-                    className="w-1.5 h-1.5 rounded-full animate-pulse"
-                    style={{ backgroundColor: isToday ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.5)" }}
+                    key={cat}
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: isToday ? "rgba(0,0,0,0.35)" : CATEGORY_COLORS[cat],
+                      marginLeft: i === 0 ? 0 : categories.length <= 3 ? "1px" : "-2px",
+                      boxShadow: `0 0 0 1px ${dotShadowColor}`,
+                    }}
                   />
-                ) : (
-                  categories.map((cat, i) => (
-                    <span
-                      key={cat}
-                      className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{
-                        backgroundColor: isToday ? "rgba(0,0,0,0.35)" : CATEGORY_COLORS[cat],
-                        marginLeft: i === 0 ? 0 : "-2px",
-                        boxShadow: `0 0 0 1px ${dotShadowColor}`,
-                      }}
-                    />
-                  ))
-                )}
+                ))}
               </div>
             </button>
           );
