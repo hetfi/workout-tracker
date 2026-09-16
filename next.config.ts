@@ -11,6 +11,13 @@ const nextConfig: NextConfig = {
           { key: "Content-Type", value: "application/javascript; charset=utf-8" },
         ],
       },
+      {
+        // ホーム・カレンダー等の動的ページはブラウザ・CDNにキャッシュさせない
+        source: "/(|home|today|session/:path*|day/:path*)",
+        headers: [
+          { key: "Cache-Control", value: "no-store" },
+        ],
+      },
     ];
   },
 };

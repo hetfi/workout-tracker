@@ -1,11 +1,10 @@
 // Service Worker for Workout Tracker PWA
 // Caches static assets and provides basic offline support.
 
-const CACHE_NAME = "workout-tracker-v1";
+const CACHE_NAME = "workout-tracker-v2";
 
+// 静的アセットのみキャッシュ（動的ページは含めない）
 const STATIC_ASSETS = [
-  "/",
-  "/home",
   "/manifest.json",
 ];
 
@@ -43,19 +42,28 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // ナビゲーションリクエスト（HTMLページ）はネットワークファースト
+  // → 常に最新データを取得し、オフライン時のみキャッシュにフォールバック
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() =>
+        caches.match(event.request).then((cached) =>
+          cached ??
+          new Response(
+            "<html><body><h1>オフライン</h1><p>インターネット接続がありません。接続後に再読み込みしてください。</p></body></html>",
+            { headers: { "Content-Type": "text/html; charset=utf-8" } }
+          )
+        )
+      )
+    );
+    return;
+  }
+
+  // 静的アセットはキャッシュファースト
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
-      return fetch(event.request).catch(() => {
-        // Return a minimal offline page for navigation requests
-        if (event.request.mode === "navigate") {
-          return new Response(
-            "<html><body><h1>オフライン</h1><p>インターネット接続がありません。接続後に再読み込みしてください。</p></body></html>",
-            { headers: { "Content-Type": "text/html; charset=utf-8" } }
-          );
-        }
-        return new Response("", { status: 503 });
-      });
+      return fetch(event.request).catch(() => new Response("", { status: 503 }));
     })
   );
 });
