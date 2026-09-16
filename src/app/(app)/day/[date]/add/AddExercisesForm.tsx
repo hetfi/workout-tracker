@@ -61,6 +61,10 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
   const [newExercisePending, setNewExercisePending] = useState<{ name: string; muscleCategory: MuscleCategory } | null>(null);
   const [newExerciseIsOneArm, setNewExerciseIsOneArm] = useState(false);
   const [newExerciseIsDuration, setNewExerciseIsDuration] = useState(false);
+  const [newExerciseRestSeconds, setNewExerciseRestSeconds] = useState(90);
+
+  const REST_OPTIONS = [30, 60, 90, 120, 180, 240, 300] as const;
+  const formatRest = (s: number) => s < 60 ? `${s}秒` : s % 60 === 0 ? `${s / 60}分` : `${Math.floor(s / 60)}分${s % 60}秒`;
 
   useEffect(() => {
     getPastExercises().then(setPastExercises);
@@ -110,13 +114,14 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
       setNewExercisePending({ name, muscleCategory: activeTab as MuscleCategory });
       setNewExerciseIsOneArm(false);
       setNewExerciseIsDuration(false);
+      setNewExerciseRestSeconds(90);
     }
   };
 
   const confirmNewExercise = async () => {
     if (!newExercisePending) return;
     const { name, muscleCategory } = newExercisePending;
-    const result = await registerNewExercise(name, muscleCategory, newExerciseIsOneArm, newExerciseIsDuration);
+    const result = await registerNewExercise(name, muscleCategory, newExerciseIsOneArm, newExerciseIsDuration, newExerciseRestSeconds);
     if (result?.error) {
       setError(`種目マスターへの登録に失敗しました（${result.error}）。種目はセッションに追加されますが、次回以降の表示が正しくならない場合があります。`);
     } else {
@@ -204,6 +209,30 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
                   {newExerciseIsOneArm ? "✓" : ""}
                 </span>
               </button>
+
+              {/* インターバル選択 */}
+              <div>
+                <p className="text-xs mb-2" style={{ color: "#8E8E93" }}>インターバル</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {REST_OPTIONS.map((s) => {
+                    const isSelected = newExerciseRestSeconds === s;
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => setNewExerciseRestSeconds(s)}
+                        className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                        style={
+                          isSelected
+                            ? { backgroundColor: "#CAFF4D", color: "#0D0D0F" }
+                            : { backgroundColor: "#2C2C2E", color: "#8E8E93", border: "1px solid rgba(255,255,255,0.08)" }
+                        }
+                      >
+                        {formatRest(s)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
             <div className="flex gap-3 pt-1">
               <button

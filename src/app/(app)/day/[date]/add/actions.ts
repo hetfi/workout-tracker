@@ -47,7 +47,8 @@ export async function registerNewExercise(
   name: string,
   muscleCategory: string,
   isOneArm: boolean,
-  isDuration: boolean
+  isDuration: boolean,
+  restSeconds: number
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
   const {
@@ -74,7 +75,7 @@ export async function registerNewExercise(
     muscle_category: muscleCategory,
     is_one_arm: isOneArm,
     is_duration: isDuration,
-    default_rest_seconds: 90,
+    default_rest_seconds: restSeconds,
   });
 
   if (error) return { error: error.message };
