@@ -116,16 +116,15 @@ export function AddExercisesForm({ date, sessionId, backTo, saveTo, submitLabel 
   const confirmNewExercise = async () => {
     if (!newExercisePending) return;
     const { name, muscleCategory } = newExercisePending;
-    try {
-      await registerNewExercise(name, muscleCategory, newExerciseIsOneArm, newExerciseIsDuration);
-      // 登録成功時のみローカルリストを更新（次回 getPastExercises で重複しないように）
+    const result = await registerNewExercise(name, muscleCategory, newExerciseIsOneArm, newExerciseIsDuration);
+    if (result?.error) {
+      setError(`種目マスターへの登録に失敗しました（${result.error}）。種目はセッションに追加されますが、次回以降の表示が正しくならない場合があります。`);
+    } else {
+      // 登録成功時のみローカルリストを更新
       setPastExercises((prev) => [
         ...prev,
         { id: crypto.randomUUID(), name, muscle_category: muscleCategory, is_one_arm: newExerciseIsOneArm, is_duration: newExerciseIsDuration },
       ]);
-    } catch (e) {
-      // 登録失敗を error に表示（セッションへの追加は続行）
-      setError(`種目の登録に失敗しました: ${e instanceof Error ? e.message : "不明なエラー"}`);
     }
     addExercise(name, newExerciseIsOneArm, muscleCategory, newExerciseIsDuration);
     setNewExercisePending(null);

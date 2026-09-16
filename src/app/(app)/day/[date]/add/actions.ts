@@ -38,20 +38,24 @@ export async function getPastExercises(): Promise<
   }));
 }
 
-/** 手動追加した新規種目を種目マスターに登録する */
+/**
+ * 手動追加した新規種目を種目マスターに登録する。
+ * throw は使わず { error } を返す（Next.js サーバーアクションの throw は
+ * 本番環境で "Minified React error #441" に変換されるため）。
+ */
 export async function registerNewExercise(
   name: string,
   muscleCategory: string,
   isOneArm: boolean,
   isDuration: boolean
-): Promise<void> {
+): Promise<{ error?: string }> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return {};
 
-  // 同名種目が既に存在するか確認（upsert の onConflict は DB 制約依存のため select+insert に変更）
+  // 同名種目が既に存在するか確認（DB 固有の unique 制約に依存しない）
   const { data: existing } = await supabase
     .from("exercises")
     .select("id")
@@ -60,8 +64,10 @@ export async function registerNewExercise(
     .is("deleted_at", null)
     .limit(1);
 
-  if (existing && existing.length > 0) return;
+  if (existing && existing.length > 0) return {};
 
+  // 既存の exercises/actions.ts と同じ最小フィールドで insert
+  // （exercise_type, weight_type, target_muscles などは DB デフォルト値に任せる）
   const { error } = await supabase.from("exercises").insert({
     user_id: user.id,
     name,
@@ -69,14 +75,10 @@ export async function registerNewExercise(
     is_one_arm: isOneArm,
     is_duration: isDuration,
     default_rest_seconds: 90,
-    exercise_type: isDuration ? "cardio" : "strength",
-    weight_type: "barbell",
-    small_weight_step: 2.5,
-    large_weight_step: 5,
-    target_muscles: [],
   });
 
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
+  return {};
 }
 
 /**
