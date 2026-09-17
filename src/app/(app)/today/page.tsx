@@ -48,16 +48,23 @@ export default async function TodayPage() {
 
   const sessionIds = sessionList.map((s) => s.id);
 
-  // 完了セットが1件以上あるか確認
-  const { count: setsCount } = await supabase
-    .from("workout_sets")
-    .select("id", { count: "exact", head: true })
-    .in("session_id", sessionIds)
-    .eq("status", "completed");
+  // 完了セット数・種目数を並列確認
+  const [{ count: setsCount }, { count: exercisesCount }] = await Promise.all([
+    supabase
+      .from("workout_sets")
+      .select("id", { count: "exact", head: true })
+      .in("session_id", sessionIds)
+      .eq("status", "completed"),
+    supabase
+      .from("workout_session_exercises")
+      .select("id", { count: "exact", head: true })
+      .in("session_id", sessionIds),
+  ]);
   const hasCompletedSets = (setsCount ?? 0) > 0;
+  const hasExercises = (exercisesCount ?? 0) > 0;
 
-  // セッションあり・完了セット0・休息日ON → 休息日カード
-  if (isRestDay && !hasCompletedSets) {
+  // セッションあり・種目なし・完了セット0・休息日ON → 休息日カード
+  if (isRestDay && !hasCompletedSets && !hasExercises) {
     return (
       <div className="py-6 space-y-5 pt-16">
         <div>
@@ -80,8 +87,8 @@ export default async function TodayPage() {
         todayStr={todayStr}
         firstActiveSessionId={firstActiveSession.id}
       />
-      {/* セット0件のみ休息日トグルを表示 */}
-      {!hasCompletedSets && (
+      {/* 種目もセットも0件のみ休息日トグルを表示 */}
+      {!hasCompletedSets && !hasExercises && (
         <div
           className="mt-4 rounded-xl px-4"
           style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
