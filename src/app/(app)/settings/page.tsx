@@ -109,7 +109,7 @@ export default function SettingsPage() {
 
   return (
     <div className="py-6 space-y-5">
-      <h1 className="text-xl font-bold" style={{ color: "#FFFFFF" }}>
+      <h1 className="text-2xl font-bold mt-4" style={{ color: "#FFFFFF" }}>
         設定
       </h1>
 
