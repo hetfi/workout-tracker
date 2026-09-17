@@ -843,7 +843,7 @@ export default function SessionPage({
           fullWidth
           onClick={handleComplete}
         >
-          {session?.status === "completed" ? "編集を完了する" : "トレーニングを完了する"}
+          {session?.status === "completed" ? "編集を完了する" : isPastSession ? "実績を登録する" : "トレーニングを完了する"}
         </Button>
       </div>
     </div>
