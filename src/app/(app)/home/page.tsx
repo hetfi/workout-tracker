@@ -458,7 +458,7 @@ export default async function HomePage() {
       )}
 
       {/* Calendar */}
-      <div>
+      <div className="mt-2">
         <h2 className="text-xl font-bold text-white mb-3">
           トレーニング記録
         </h2>
