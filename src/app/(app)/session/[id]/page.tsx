@@ -651,6 +651,11 @@ export default function SessionPage({
 
     // セットがゼロ（プリセット未生成など）か未完了あり → 完了扱いにしない
     if (pendingCount > 0 || totalCount === 0) {
+      if (isPastSession) {
+        // 過去日: 確認なしでサマリページへ（0セットはサマリが「未記録」表示になる）
+        router.push(`/day/${session?.date}`);
+        return;
+      }
       const msg =
         totalCount === 0
           ? "完了したセットがありません。ホームに戻りますか？"
