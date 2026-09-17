@@ -649,36 +649,30 @@ export default function SessionPage({
     const totalCount = allSets.length;
     const pendingCount = totalCount - completedCount;
 
-    // セットがゼロ（プリセット未生成など）か未完了あり → 完了扱いにしない
-    if (pendingCount > 0 || totalCount === 0) {
-      if (isPastSession) {
-        // 過去日・0セット: セッションを破棄してサマリへ（「記録なし」状態で表示）
+    if (isPastSession) {
+      if (totalCount === 0) {
+        // セットなし → セッション破棄して「記録なし」状態で表示
         try {
           await updateSession(sessionId, { status: "abandoned" });
         } catch {
           /* non-critical */
         }
-        // ハードナビゲーションでキャッシュを回避し、必ずサーバーから最新データを取得
         window.location.replace(`/day/${session?.date}`);
         return;
       }
-      const msg =
-        totalCount === 0
-          ? "完了したセットがありません。ホームに戻りますか？"
-          : completedCount === 0
-          ? "完了したセットがありません。ホームに戻りますか？"
-          : `まだ${pendingCount}セット完了していません。ホームに戻りますか？`;
-      if (!confirm(msg)) return;
-      // in_progress のままホームへ（ホームで「トレーニングを再開」が表示される）
-      router.push("/home");
-      return;
-    }
-
-    // 全セット完了 → 今日はグッジョブ画面、過去日はサマリページへ直接
-    if (session?.date === getTodayJST()) {
-      router.push(`/session/${sessionId}/complete`);
-    } else {
-      // 過去日: グッジョブ画面なし。セッションを完了状態にしてサマリへ
+      // pending セットがあれば全て completed に昇格してから完了
+      if (pendingCount > 0) {
+        const pendingSets = allSets.filter((s) => s.status !== "completed");
+        try {
+          await Promise.all(
+            pendingSets.map((s) =>
+              upsertSet({ ...s, status: "completed", completedAt: new Date().toISOString() })
+            )
+          );
+        } catch {
+          /* non-critical */
+        }
+      }
       try {
         await updateSession(sessionId, {
           status: "completed",
@@ -688,7 +682,24 @@ export default function SessionPage({
         /* non-critical */
       }
       window.location.replace(`/day/${session?.date}`);
+      return;
     }
+
+    // 通常セッション: セットがゼロか未完了あり → 確認ダイアログ
+    if (pendingCount > 0 || totalCount === 0) {
+      const msg =
+        totalCount === 0
+          ? "完了したセットがありません。ホームに戻りますか？"
+          : completedCount === 0
+          ? "完了したセットがありません。ホームに戻りますか？"
+          : `まだ${pendingCount}セット完了していません。ホームに戻りますか？`;
+      if (!confirm(msg)) return;
+      router.push("/home");
+      return;
+    }
+
+    // 全セット完了 → グッジョブ画面へ
+    router.push(`/session/${sessionId}/complete`);
   };
 
   if (loading) {
