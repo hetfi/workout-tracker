@@ -139,7 +139,7 @@ export function WorkoutCalendar({
           const categories = initialData[dateStr] ?? [];
           const isToday = dateStr === todayStr;
           const isFuture = dateStr > todayStr;
-          const isRestDay = !isToday && !isFuture && restDaySet.has(dateStr);
+          const isRestDay = !isFuture && restDaySet.has(dateStr);
 
           const handleClick = () => {
             if (isToday) {
@@ -182,7 +182,7 @@ export function WorkoutCalendar({
                 {isRestDay ? (
                   <span
                     className="text-xs leading-none font-bold"
-                    style={{ color: "#AEAEB2", fontSize: "10px", lineHeight: 1 }}
+                    style={{ color: isToday ? "rgba(0,0,0,0.45)" : "#AEAEB2", fontSize: "10px", lineHeight: 1 }}
                   >
                     –
                   </span>
