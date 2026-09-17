@@ -477,25 +477,28 @@ export async function getPreviousSessionDataBatch(
       exercise_name,
       created_at,
       workout_sessions!inner(status),
-      workout_sets(set_number, weight, reps, status)
+      workout_sets!inner(set_number, weight, reps, status)
     `
     )
     .eq("workout_sessions.status", "completed")
+    .eq("workout_sets.status", "completed")
     .in("exercise_name", names)
     .order("created_at", { ascending: false })
-    .limit(names.length * 5); // 種目あたり最大 5 件で十分
+    .limit(names.length * 10);
 
-  // created_at 降順なので最初に出てきたものが最新
+  // created_at 降順 / !inner により完了セットが0件のセッションは除外済み
   const seen = new Set<string>();
   for (const row of data ?? []) {
     const r = row as Record<string, unknown>;
     const name = r.exercise_name as string;
     if (seen.has(name)) continue;
+    const completedSets = (r.workout_sets as Record<string, unknown>[]) ?? [];
+    if (completedSets.length === 0) continue; // 念のため二重チェック
     seen.add(name);
     resultMap.set(name, {
       exerciseId: (r.exercise_id as string) ?? null,
       exerciseName: name,
-      sets: ((r.workout_sets as Record<string, unknown>[]) ?? []).map((s) => ({
+      sets: completedSets.map((s) => ({
         setNumber: Number(s.set_number),
         weight: Number(s.weight),
         reps: Number(s.reps),

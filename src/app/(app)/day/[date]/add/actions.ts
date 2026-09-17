@@ -100,60 +100,37 @@ async function getLatestHistoryForExercises(
 ): Promise<Record<string, ExerciseHistoryData>> {
   if (exerciseNames.length === 0) return {};
 
-  // 1. 最新の完了セッション種目を取得（降順なので先頭が最新）
+  // !inner で完了セットが0件の completed セッションを除外しつつ1クエリで取得
   const { data: seRows } = await supabase
     .from("workout_session_exercises")
     .select(`
-      id,
       exercise_name,
       planned_reps_min,
       planned_reps_max,
-      workout_sessions!inner(status)
+      workout_sessions!inner(status),
+      workout_sets!inner(set_number, status)
     `)
     .eq("user_id", userId)
     .in("exercise_name", exerciseNames)
     .eq("workout_sessions.status", "completed")
+    .eq("workout_sets.status", "completed")
     .order("created_at", { ascending: false })
-    .limit(exerciseNames.length * 5);
+    .limit(exerciseNames.length * 10);
 
-  // 種目名ごとに最新1件だけ保持
-  const latestByName = new Map<string, { id: string; repsMin: number; repsMax: number }>();
+  // 種目名ごとに最新1件だけ保持（先頭が最新）
+  const result: Record<string, ExerciseHistoryData> = {};
   for (const row of seRows ?? []) {
     const r = row as Record<string, unknown>;
     const name = r.exercise_name as string;
-    if (!latestByName.has(name)) {
-      latestByName.set(name, {
-        id: r.id as string,
-        repsMin: Number(r.planned_reps_min ?? 0),
-        repsMax: Number(r.planned_reps_max ?? 0),
-      });
-    }
-  }
-
-  if (latestByName.size === 0) return {};
-
-  // 2. その session_exercise の完了セットを取得し、ユニーク set_number 数を数える
-  const seIds = Array.from(latestByName.values()).map((v) => v.id);
-  const { data: setRows } = await supabase
-    .from("workout_sets")
-    .select("session_exercise_id, set_number")
-    .in("session_exercise_id", seIds)
-    .eq("status", "completed");
-
-  const result: Record<string, ExerciseHistoryData> = {};
-  for (const [name, info] of latestByName) {
-    const setsForEx = (setRows ?? []).filter(
-      (s: Record<string, unknown>) => s.session_exercise_id === info.id
-    );
-    // ユニークな set_number でペア数（片側種目も通常種目も同じロジックで OK）
-    const uniqueSetNums = new Set(
-      setsForEx.map((s: Record<string, unknown>) => Number(s.set_number))
-    );
-    const completedSets = uniqueSetNums.size;
+    if (result[name]) continue;
+    const sets = (r.workout_sets as Record<string, unknown>[]) ?? [];
+    // ユニーク set_number 数 = 実際のセット数（片側種目も同じロジックで OK）
+    const uniqueSetNums = new Set(sets.map((s) => Number(s.set_number)));
+    if (uniqueSetNums.size === 0) continue; // 念のため二重チェック
     result[name] = {
-      completedSets: completedSets > 0 ? completedSets : 0,
-      repsMin: info.repsMin,
-      repsMax: info.repsMax,
+      completedSets: uniqueSetNums.size,
+      repsMin: Number(r.planned_reps_min ?? 0),
+      repsMax: Number(r.planned_reps_max ?? 0),
     };
   }
 
