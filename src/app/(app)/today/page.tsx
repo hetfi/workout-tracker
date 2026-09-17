@@ -34,7 +34,7 @@ export default async function TodayPage() {
   if (sessionList.length === 0) {
     return (
       <div className="py-6 space-y-5">
-        <h1 className="text-xl font-bold text-white mt-4">今日のメニュー</h1>
+        <h1 className="text-2xl font-bold text-white mt-4">今日のメニュー</h1>
         <TodayNoSessionCard date={todayStr} initialIsRest={isRestDay} />
       </div>
     );
@@ -67,7 +67,7 @@ export default async function TodayPage() {
     return (
       <div className="py-6 space-y-5">
         <div>
-          <h1 className="text-xl font-bold text-white mt-4">今日のメニュー</h1>
+          <h1 className="text-2xl font-bold text-white mt-4">今日のメニュー</h1>
         </div>
         {isRestDay ? (
           <TodayRestDayCard date={todayStr} />
