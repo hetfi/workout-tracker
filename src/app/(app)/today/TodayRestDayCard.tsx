@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { setRestDay } from "@/app/(app)/day/rest-day-actions";
+import { ImportIcon } from "@/components/icons/ImportIcon";
 
 interface TodayRestDayCardProps {
   date: string;
@@ -34,7 +35,7 @@ export function TodayRestDayCard({ date }: TodayRestDayCardProps) {
         className="flex items-center justify-center gap-2 w-full text-sm py-3 rounded-xl font-medium"
         style={{ backgroundColor: "#3A3A3C", color: "#48484A" }}
       >
-        ⬒ ChatGPTから取り込む
+        <ImportIcon /> ChatGPTから取り込む
       </div>
       <div
         className="flex items-center justify-center gap-2 w-full text-sm py-3 rounded-xl font-medium"

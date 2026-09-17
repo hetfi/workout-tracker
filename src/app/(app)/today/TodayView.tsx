@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ExerciseCard } from "@/components/training/ExerciseCard";
+import { ImportIcon } from "@/components/icons/ImportIcon";
 import { Button } from "@/components/ui/Button";
 import { SaveStatusIndicator } from "@/components/ui/SaveStatus";
 import { useToast } from "@/components/ui/Toast";
@@ -629,10 +630,10 @@ export function TodayView({
           <p className="text-sm text-[#8E8E93]">種目を追加してトレーニングを始めましょう</p>
           <a
             href={`/import?date=${todayStr}`}
-            className="block text-center text-sm py-3 rounded-xl font-medium"
+            className="flex items-center justify-center gap-2 text-sm py-3 rounded-xl font-medium"
             style={{ backgroundColor: "#CAFF4D", color: "#0D0D0F" }}
           >
-            ChatGPTから取り込む
+            <ImportIcon /> ChatGPTから取り込む
           </a>
           <a
             href={`/day/${todayStr}/add?sessionId=${firstActiveSessionId}&backTo=/today`}

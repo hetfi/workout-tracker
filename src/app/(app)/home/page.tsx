@@ -7,6 +7,7 @@ import { getCalendarDataRange } from "./actions";
 import { getRestDaysInRange } from "@/app/(app)/day/rest-day-actions";
 import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar";
 import { TodayNoSessionCard } from "@/app/(app)/today/TodayNoSessionCard";
+import { ImportIcon } from "@/components/icons/ImportIcon";
 import { CopyButton } from "@/components/ui/CopyButton";
 import {
   classifyExercise,
@@ -427,10 +428,10 @@ export default async function HomePage() {
             <p className="text-sm text-[#8E8E93]">種目を追加してトレーニングを始めましょう</p>
             <Link
               href={`/import?date=${todayStr}`}
-              className="block text-center text-sm py-3 rounded-xl font-semibold"
+              className="flex items-center justify-center gap-2 text-sm py-3 rounded-xl font-semibold"
               style={{ backgroundColor: "#CAFF4D", color: "#0D0D0F" }}
             >
-              ChatGPTから取り込む
+              <ImportIcon /> ChatGPTから取り込む
             </Link>
             <Link
               href={`/day/${todayStr}/add?sessionId=${firstActiveSessionId}&backTo=/home`}

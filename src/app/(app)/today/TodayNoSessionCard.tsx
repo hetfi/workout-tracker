@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { setRestDay } from "@/app/(app)/day/rest-day-actions";
+import { ImportIcon } from "@/components/icons/ImportIcon";
 
 interface TodayNoSessionCardProps {
   date: string;
@@ -68,7 +69,7 @@ export function TodayNoSessionCard({ date, initialIsRest, backTo = "/today" }: T
           className="flex items-center justify-center gap-2 w-full text-sm py-3 rounded-xl font-medium"
           style={{ backgroundColor: "#3A3A3C", color: "#48484A" }}
         >
-          ⬒ ChatGPTから取り込む
+          <ImportIcon /> ChatGPTから取り込む
         </div>
       ) : (
         <Link
@@ -76,7 +77,7 @@ export function TodayNoSessionCard({ date, initialIsRest, backTo = "/today" }: T
           className="flex items-center justify-center gap-2 w-full text-sm py-3 rounded-xl font-semibold"
           style={{ backgroundColor: "#CAFF4D", color: "#0D0D0F" }}
         >
-          ⬒ ChatGPTから取り込む
+          <ImportIcon /> ChatGPTから取り込む
         </Link>
       )}
 
