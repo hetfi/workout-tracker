@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { TodayView } from "./TodayView";
 import { TodayNoSessionCard } from "./TodayNoSessionCard";
 import { TodayRestDayCard } from "./TodayRestDayCard";
-import { TodayRestDayRow } from "./TodayRestDayRow";
 import { getIsRestDay } from "@/app/(app)/day/rest-day-actions";
 
 export const dynamic = "force-dynamic";
@@ -63,14 +62,28 @@ export default async function TodayPage() {
   const hasCompletedSets = (setsCount ?? 0) > 0;
   const hasExercises = (exercisesCount ?? 0) > 0;
 
-  // セッションあり・種目なし・完了セット0・休息日ON → 休息日カード
-  if (isRestDay && !hasCompletedSets && !hasExercises) {
+  // 種目も完了セットも0件 → 空セッションを破棄してノーセッション状態へ戻す
+  if (!hasExercises && !hasCompletedSets) {
+    await supabase
+      .from("workout_sessions")
+      .update({ status: "abandoned" })
+      .in("id", sessionIds);
+
     return (
       <div className="py-6 space-y-5 pt-16">
         <div>
           <h1 className="text-2xl font-bold text-white">今日のメニュー</h1>
+          {!isRestDay && (
+            <p className="text-xs text-[#8E8E93] mt-1">
+              まだトレーニングが登録されていません
+            </p>
+          )}
         </div>
-        <TodayRestDayCard date={todayStr} />
+        {isRestDay ? (
+          <TodayRestDayCard date={todayStr} />
+        ) : (
+          <TodayNoSessionCard date={todayStr} initialIsRest={isRestDay} />
+        )}
       </div>
     );
   }
@@ -87,15 +100,6 @@ export default async function TodayPage() {
         todayStr={todayStr}
         firstActiveSessionId={firstActiveSession.id}
       />
-      {/* 種目もセットも0件のみ休息日トグルを表示 */}
-      {!hasCompletedSets && !hasExercises && (
-        <div
-          className="mt-4 rounded-xl px-4"
-          style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
-        >
-          <TodayRestDayRow date={todayStr} />
-        </div>
-      )}
     </div>
   );
 }

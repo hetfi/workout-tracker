@@ -6,7 +6,6 @@ import { getCalendarDataRange } from "./actions";
 import { getRestDaysInRange } from "@/app/(app)/day/rest-day-actions";
 import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar";
 import { TodayNoSessionCard } from "@/app/(app)/today/TodayNoSessionCard";
-import { ImportIcon } from "@/components/icons/ImportIcon";
 import { CopyButton } from "@/components/ui/CopyButton";
 import {
   classifyExercise,
@@ -401,6 +400,14 @@ export default async function HomePage() {
 
   const streak = calcStreak(streakSessions);
 
+  // 種目0件のアクティブセッションを破棄（今日のメニューと同様）
+  if (showAddUI && hasAnySessions && activeSessionIds.length > 0) {
+    await supabase
+      .from("workout_sessions")
+      .update({ status: "abandoned" })
+      .in("id", activeSessionIds);
+  }
+
   return (
     <div className="py-6 space-y-5">
       {/* Date header */}
@@ -420,30 +427,8 @@ export default async function HomePage() {
       {/* ====== Main section ====== */}
 
       {showAddUI ? (
-        /* セッションなし or 種目0件 → 作成オプション */
-        !hasAnySessions ? (
-          /* セッション自体なし → 休息日トグル付きカード */
-          <TodayNoSessionCard date={todayStr} initialIsRest={isRestDay} backTo="/home" />
-        ) : (
-          /* セッションはあるが種目0件 → シンプルな追加UI */
-          <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 space-y-3">
-            <p className="text-sm text-[#8E8E93]">種目を追加してトレーニングを始めましょう</p>
-            <Link
-              href={`/import?date=${todayStr}`}
-              className="flex items-center justify-center gap-2 text-sm py-3 rounded-xl font-semibold"
-              style={{ backgroundColor: "#CAFF4D", color: "#0D0D0F" }}
-            >
-              <ImportIcon /> ChatGPTから取り込む
-            </Link>
-            <Link
-              href={`/day/${todayStr}/add?sessionId=${firstActiveSessionId}&backTo=/home`}
-              className="block text-center text-sm py-3 rounded-xl font-medium"
-              style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
-            >
-              ＋ 手動で種目を追加する
-            </Link>
-          </div>
-        )
+        /* セッションなし or 種目0件 → 休息日トグル付きカード */
+        <TodayNoSessionCard date={todayStr} initialIsRest={isRestDay} backTo="/home" />
       ) : allComplete ? (
         /* 全完了 → お疲れ様 + 今日の実績 */
         (() => {
