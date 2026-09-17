@@ -624,8 +624,8 @@ export function TodayView({
   // セッションはあるが種目がゼロ（セッション作成直後など）
   if (exercises.length === 0) {
     return (
-      <div className="py-6 space-y-4 pt-16">
-        <h1 className="text-xl font-bold text-white">今日のメニュー</h1>
+      <div className="py-6 space-y-4">
+        <h1 className="text-2xl font-bold text-white mt-4">今日のメニュー</h1>
         <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 space-y-3">
           <p className="text-sm text-[#8E8E93]">種目を追加してトレーニングを始めましょう</p>
           <a
@@ -664,8 +664,8 @@ export function TodayView({
   return (
     <div className="py-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between pt-12">
-        <h1 className="text-xl font-bold text-white">今日のメニュー</h1>
+      <div className="flex items-center justify-between mt-4">
+        <h1 className="text-2xl font-bold text-white">今日のメニュー</h1>
         <SaveStatusIndicator status={saveStatus} />
       </div>
 
