@@ -3,7 +3,8 @@ export const dynamic = "force-dynamic";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
-import { getCalendarDataRange, getRestDaysInRange } from "./actions";
+import { getCalendarDataRange } from "./actions";
+import { getRestDaysInRange } from "@/app/(app)/day/rest-day-actions";
 import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar";
 import { CopyButton } from "@/components/ui/CopyButton";
 import {
