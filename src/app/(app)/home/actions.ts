@@ -11,48 +11,39 @@ export async function startTrainingFromPlan(planId: string) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Load plan
-  const { data: plan, error: planError } = await supabase
-    .from("workout_plans")
-    .select("*")
-    .eq("id", planId)
-    .single();
-  if (planError || !plan) throw new Error("Plan not found");
-
-  // Load plan exercises
-  const { data: planExercises } = await supabase
-    .from("workout_plan_exercises")
-    .select("*")
-    .eq("plan_id", planId)
-    .order("sort_order");
-
-  // Create session
-  const today = new Date();
-  const jst = new Date(today.getTime() + 9 * 60 * 60 * 1000);
+  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const todayStr = jst.toISOString().slice(0, 10);
 
-  const { data: session, error: sessionError } = await supabase
-    .from("workout_sessions")
-    .insert({
-      user_id: user.id,
-      plan_id: planId,
-      date: todayStr,
-      title: plan.title,
-      status: "not_started",
-    })
-    .select()
-    .single();
+  // プランとプラン種目を並列取得
+  const [{ data: plan, error: planError }, { data: planExercises }] = await Promise.all([
+    supabase.from("workout_plans").select("*").eq("id", planId).single(),
+    supabase.from("workout_plan_exercises").select("*").eq("plan_id", planId).order("sort_order"),
+  ]);
+  if (planError || !plan) throw new Error("Plan not found");
+
+  const exerciseNames = (planExercises ?? []).map((pe) => pe.exercise_name);
+
+  // セッション作成とマスター取得を並列実行
+  const [{ data: session, error: sessionError }, { data: exerciseMaster }] = await Promise.all([
+    supabase
+      .from("workout_sessions")
+      .insert({
+        user_id: user.id,
+        plan_id: planId,
+        date: todayStr,
+        title: plan.title,
+        status: "not_started",
+      })
+      .select()
+      .single(),
+    exerciseNames.length > 0
+      ? supabase.from("exercises").select("name, is_one_arm").eq("user_id", user.id).in("name", exerciseNames)
+      : Promise.resolve({ data: [] as { name: string; is_one_arm: boolean }[] }),
+  ]);
   if (sessionError || !session) throw new Error("Failed to create session");
 
   // Create session exercises from plan exercises
   if (planExercises && planExercises.length > 0) {
-    // Look up is_one_arm from exercises master for each exercise name
-    const exerciseNames = planExercises.map((pe) => pe.exercise_name);
-    const { data: exerciseMaster } = await supabase
-      .from("exercises")
-      .select("name, is_one_arm")
-      .eq("user_id", user.id)
-      .in("name", exerciseNames);
 
     const oneArmMap: Record<string, boolean> = {};
     for (const ex of exerciseMaster ?? []) {

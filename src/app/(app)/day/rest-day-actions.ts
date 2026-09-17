@@ -21,8 +21,9 @@ export async function setRestDay(date: string, isRest: boolean): Promise<{ error
   if (!user) return { error: "未認証" };
 
   if (isRest) {
-    await supabase.from("rest_days").delete().eq("user_id", user.id).eq("date", date);
-    const { error } = await supabase.from("rest_days").insert({ user_id: user.id, date });
+    const { error } = await supabase
+      .from("rest_days")
+      .upsert({ user_id: user.id, date }, { onConflict: "user_id,date" });
     if (error) return { error: error.message };
   } else {
     const { error } = await supabase.from("rest_days").delete().eq("user_id", user.id).eq("date", date);

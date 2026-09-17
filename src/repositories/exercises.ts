@@ -229,9 +229,6 @@ export async function getExerciseDurationMap(): Promise<Record<string, boolean>>
   return (await fetchExerciseMasterMaps()).durationMap;
 }
 
-/** 後方互換のため残す（キャッシュなし化により呼び出し不要になったが削除すると import エラーになるため） */
-export function invalidateCategoryMapCache(): void {}
-
 /**
  * Find exercise by name or alias (case-insensitive).
  * Returns the exercise if found, or null.

@@ -39,11 +39,6 @@ export function WorkoutCalendar({
   const [month, setMonth] = useState(initialMonth);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
 
-  // ページに戻ってきたときにローディング状態をリセット
-  useEffect(() => {
-    setNavigatingTo(null);
-  }, []);
-
   const todayStr = getTodayJST();
   const todayDate = new Date(todayStr + "T00:00:00+09:00");
   const currentYear = todayDate.getFullYear();

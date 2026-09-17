@@ -196,11 +196,11 @@ export async function addManualSession(
 
   if (exercises.length === 0) throw new Error("種目を1つ以上追加してください");
 
-  // 種目マスターから default_rest_seconds を取得
-  const restMap = await getRestSecondsMap(supabase, user.id, exercises.map((e) => e.name));
-
-  // 最新の履歴からセット数・レップ目安を取得して上書き
-  const historyMap = await getLatestHistoryForExercises(supabase, user.id, exercises.map((e) => e.name));
+  const exerciseNames0 = exercises.map((e) => e.name);
+  const [restMap, historyMap] = await Promise.all([
+    getRestSecondsMap(supabase, user.id, exerciseNames0),
+    getLatestHistoryForExercises(supabase, user.id, exerciseNames0),
+  ]);
   exercises = exercises.map((e) => {
     const hist = historyMap[e.name];
     if (hist && hist.completedSets > 0) {
@@ -335,11 +335,11 @@ export async function addExercisesToSession(
 
   const maxSortOrder = existing?.[0]?.sort_order ?? -1;
 
-  // 種目マスターから default_rest_seconds を取得
-  const restMap = await getRestSecondsMap(supabase, user.id, exercises.map((e) => e.name));
-
-  // 最新の履歴からセット数・レップ目安を取得して上書き
-  const historyMap = await getLatestHistoryForExercises(supabase, user.id, exercises.map((e) => e.name));
+  const exerciseNamesAdd = exercises.map((e) => e.name);
+  const [restMap, historyMap] = await Promise.all([
+    getRestSecondsMap(supabase, user.id, exerciseNamesAdd),
+    getLatestHistoryForExercises(supabase, user.id, exerciseNamesAdd),
+  ]);
   exercises = exercises.map((e) => {
     const hist = historyMap[e.name];
     if (hist && hist.completedSets > 0) {

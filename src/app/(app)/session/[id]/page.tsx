@@ -30,7 +30,7 @@ import {
   loadDraftTimer,
   deleteDraftTimer,
 } from "@/lib/storage/draft";
-import { getExerciseCategoryMap, getExerciseDurationMap } from "@/repositories/exercises";
+import { getExerciseMasterMaps } from "@/repositories/exercises";
 import { getUserSettings } from "@/repositories/userSettings";
 import { getIntervalEnabled } from "@/lib/storage/localSettings";
 import { buildExercisePreset } from "@/lib/preset";
@@ -145,8 +145,7 @@ export default function SessionPage({
         const [
           sessionData,
           exData,
-          masterMap,
-          durationMap,
+          masterMaps,
           setsData,
           dbTimer,
           localTimer,
@@ -155,8 +154,7 @@ export default function SessionPage({
         ] = await Promise.all([
           getSessionById(sessionId),
           getSessionExercises(sessionId),
-          getExerciseCategoryMap(),
-          getExerciseDurationMap(),
+          getExerciseMasterMaps(),
           getSessionSets(sessionId),
           getRunningTimer(sessionId),
           loadDraftTimer(sessionId),
@@ -169,6 +167,8 @@ export default function SessionPage({
           router.push("/home");
           return;
         }
+
+        const { categoryMap: masterMap, durationMap } = masterMaps;
 
         setSession(sessionData);
 
