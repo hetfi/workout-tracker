@@ -6,7 +6,7 @@ import { TodayRestDayCard } from "./TodayRestDayCard";
 import { TodayRestDayRow } from "./TodayRestDayRow";
 import { getIsRestDay } from "@/app/(app)/day/rest-day-actions";
 
-export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
 export default async function TodayPage() {
   const supabase = await createClient();

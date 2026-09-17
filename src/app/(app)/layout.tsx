@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { VisibilityRefresh } from "@/components/VisibilityRefresh";
 
 async function NavBar() {
   return (
@@ -45,6 +46,7 @@ function NavItem({ href, label, children }: { href: string; label: string; child
   return (
     <Link
       href={href}
+      prefetch={false}
       className="flex flex-col items-center gap-1 py-1 px-4 text-[#8E8E93] hover:text-white transition-colors min-w-[64px]"
     >
       {children}
@@ -69,6 +71,7 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen pb-20">
+      <VisibilityRefresh />
       <main className="max-w-lg mx-auto px-4 pt-safe-top">{children}</main>
       <NavBar />
     </div>
