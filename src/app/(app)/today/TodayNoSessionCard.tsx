@@ -58,6 +58,9 @@ export function TodayNoSessionCard({ date, initialIsRest, backTo = "/today" }: T
       ) : (
         <>
           <p className="font-medium text-white">今日のトレーニングは未登録です</p>
+          <p className="text-sm" style={{ color: "#8E8E93" }}>
+            まずは今日行う種目を登録し、その後各種目の記録をつけてください
+          </p>
         </>
       )}
 
