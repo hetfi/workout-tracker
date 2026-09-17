@@ -152,79 +152,19 @@ async function getTodayData(userId: string) {
   };
 }
 
-/**
- * アクティブセッションで未完了セットが残っている部位カテゴリを返す。
- * planned_sets > completed_sets の種目があるカテゴリを対象とする。
- */
-async function getIncompleteCategories(
+/** 今日の実績 + 未完了カテゴリを1回のDB往復セットで取得 */
+async function getTodayStats(
   userId: string,
+  sessionIds: string[],
   activeSessionIds: string[]
-): Promise<MuscleCategory[]> {
-  if (activeSessionIds.length === 0) return [];
-  const supabase = await createClient();
-
-  const [{ data: exercises }, { data: completedSets }] = await Promise.all([
-    supabase
-      .from("workout_session_exercises")
-      .select("id, exercise_name, planned_sets")
-      .in("session_id", activeSessionIds),
-    supabase
-      .from("workout_sets")
-      .select("session_exercise_id")
-      .in("session_id", activeSessionIds)
-      .eq("status", "completed"),
-  ]);
-
-  if (!exercises || exercises.length === 0) return [];
-
-  // 種目ごとの完了セット数
-  const completedCount: Record<string, number> = {};
-  for (const s of completedSets ?? []) {
-    completedCount[s.session_exercise_id] =
-      (completedCount[s.session_exercise_id] ?? 0) + 1;
-  }
-
-  // 未完了の種目名を抽出
-  const incompleteNames = exercises
-    .filter((ex) => (completedCount[ex.id] ?? 0) < Number(ex.planned_sets))
-    .map((ex) => ex.exercise_name as string);
-
-  if (incompleteNames.length === 0) return [];
-
-  // 種目マスターからカテゴリを取得
-  const uniqueNames = [...new Set(incompleteNames)];
-  const { data: masterExercises } = await supabase
-    .from("exercises")
-    .select("name, muscle_category")
-    .eq("user_id", userId)
-    .in("name", uniqueNames);
-
-  const catMap: Record<string, string> = {};
-  for (const me of masterExercises ?? []) {
-    if (me.muscle_category) catMap[me.name as string] = me.muscle_category as string;
-  }
-
-  const cats = new Set<MuscleCategory>();
-  for (const name of incompleteNames) {
-    const cat = (catMap[name] ?? classifyExercise(name)) as MuscleCategory;
-    cats.add(cat);
-  }
-
-  return CATEGORY_ORDER.filter((cat) => cats.has(cat));
-}
-
-/** 今日の完了済み種目を取得（completed set がある種目のみ） */
-async function getTodayAchievement(
-  userId: string,
-  sessionIds: string[]
-): Promise<AchievementExercise[]> {
-  if (sessionIds.length === 0) return [];
+): Promise<{ achievement: AchievementExercise[]; incompleteCategories: MuscleCategory[] }> {
+  if (sessionIds.length === 0) return { achievement: [], incompleteCategories: [] };
   const supabase = await createClient();
 
   const [{ data: exercises }, { data: sets }] = await Promise.all([
     supabase
       .from("workout_session_exercises")
-      .select("id, session_id, exercise_name, sort_order")
+      .select("id, session_id, exercise_name, planned_sets, sort_order")
       .in("session_id", sessionIds)
       .order("sort_order"),
     supabase
@@ -235,9 +175,7 @@ async function getTodayAchievement(
       .order("set_number"),
   ]);
 
-  const names = [
-    ...new Set((exercises ?? []).map((e) => e.exercise_name)),
-  ];
+  const names = [...new Set((exercises ?? []).map((e) => e.exercise_name))];
   const { data: masterExercises } =
     names.length > 0
       ? await supabase
@@ -250,40 +188,51 @@ async function getTodayAchievement(
   const categoryMap: Record<string, MuscleCategory> = {};
   const durationMap: Record<string, boolean> = {};
   for (const ex of masterExercises ?? []) {
-    if (ex.muscle_category)
-      categoryMap[ex.name] = ex.muscle_category as MuscleCategory;
+    if (ex.muscle_category) categoryMap[ex.name] = ex.muscle_category as MuscleCategory;
     durationMap[ex.name] = Boolean(ex.is_duration);
   }
 
   const setsByExId: Record<string, AchievementSet[]> = {};
+  const completedCountByExId: Record<string, number> = {};
   for (const s of sets ?? []) {
-    if (!setsByExId[s.session_exercise_id])
-      setsByExId[s.session_exercise_id] = [];
+    if (!setsByExId[s.session_exercise_id]) setsByExId[s.session_exercise_id] = [];
     setsByExId[s.session_exercise_id].push({
       setNumber: Number(s.set_number),
       weight: Number(s.weight),
       reps: Number(s.reps),
       side: (s.side as string | null) ?? null,
     });
+    completedCountByExId[s.session_exercise_id] = (completedCountByExId[s.session_exercise_id] ?? 0) + 1;
   }
 
-  return (exercises ?? [])
+  // 実績：完了セットがある種目のみ
+  const achievement = (exercises ?? [])
     .map((ex) => {
       const exSets = setsByExId[ex.id] ?? [];
       if (exSets.length === 0) return null;
       return {
         name: ex.exercise_name,
-        category: (categoryMap[ex.exercise_name] ??
-          classifyExercise(ex.exercise_name)) as MuscleCategory,
+        category: (categoryMap[ex.exercise_name] ?? classifyExercise(ex.exercise_name)) as MuscleCategory,
         completedSets: exSets.length,
-        totalVolume: Math.round(
-          exSets.reduce((acc, s) => acc + s.weight * s.reps, 0)
-        ),
+        totalVolume: Math.round(exSets.reduce((acc, s) => acc + s.weight * s.reps, 0)),
         sets: exSets,
         isDuration: durationMap[ex.exercise_name] ?? false,
       };
     })
     .filter(Boolean) as AchievementExercise[];
+
+  // 未完了カテゴリ：アクティブセッションのみ対象、planned > completed の種目
+  const activeSet = new Set(activeSessionIds);
+  const incompleteCats = new Set<MuscleCategory>();
+  for (const ex of exercises ?? []) {
+    if (!activeSet.has(ex.session_id)) continue;
+    if ((completedCountByExId[ex.id] ?? 0) < Number(ex.planned_sets)) {
+      incompleteCats.add((categoryMap[ex.exercise_name] ?? classifyExercise(ex.exercise_name)) as MuscleCategory);
+    }
+  }
+  const incompleteCategories = CATEGORY_ORDER.filter((c) => incompleteCats.has(c));
+
+  return { achievement, incompleteCategories };
 }
 
 // ---- Sub-components ----
@@ -378,15 +327,10 @@ export default async function HomePage() {
   // セッションがあっても種目が0件の場合は「追加」UIを出す
   const showAddUI = !hasAnySessions || (hasActiveSessions && !hasExercises);
 
-  // 実績データ + 未完了カテゴリを並列取得
-  const [achievement, incompleteCategories] = await Promise.all([
-    hasAnySessions
-      ? getTodayAchievement(user.id, sessions.map((s) => s.id))
-      : Promise.resolve([]),
-    hasActiveSessions && hasExercises && !showAddUI
-      ? getIncompleteCategories(user.id, activeSessionIds)
-      : Promise.resolve([]),
-  ]);
+  // 実績 + 未完了カテゴリを1回のDB往復セットで取得
+  const { achievement, incompleteCategories } = hasAnySessions
+    ? await getTodayStats(user.id, sessions.map((s) => s.id), activeSessionIds)
+    : { achievement: [], incompleteCategories: [] };
 
   // 実績タイトル（完了時のみ使う）
   const achievementTitle = (() => {
