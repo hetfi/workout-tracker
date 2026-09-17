@@ -353,11 +353,11 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="py-6 space-y-5">
+    <div className="py-6 space-y-3">
       {/* Date header */}
       <div>
         <p className="text-xs text-[#8E8E93]">{formatJapaneseDate(todayStr)}</p>
-        <h1 className="text-xl font-bold text-white">今日のトレーニング</h1>
+        <h1 className="text-xl font-bold text-white">今日の予定・実績</h1>
       </div>
 
       {/* Streak */}
