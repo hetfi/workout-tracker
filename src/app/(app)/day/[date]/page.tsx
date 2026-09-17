@@ -8,6 +8,8 @@ import {
   CATEGORY_COLORS,
   type MuscleCategory,
 } from "@/lib/muscleCategory";
+import { getIsRestDay } from "@/app/(app)/day/rest-day-actions";
+import { DayEmptyCard } from "./DayEmptyCard";
 
 interface PageProps {
   params: Promise<{ date: string }>;
@@ -29,14 +31,17 @@ export default async function DayPage({ params }: PageProps) {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // 1. その日のセッション
-  const { data: sessions } = await supabase
-    .from("workout_sessions")
-    .select("id, title, status, created_at")
-    .eq("user_id", user.id)
-    .eq("date", date)
-    .neq("status", "abandoned")
-    .order("created_at", { ascending: true });
+  // 1. その日のセッション + 休息日フラグを並列取得
+  const [{ data: sessions }, isRestDay] = await Promise.all([
+    supabase
+      .from("workout_sessions")
+      .select("id, title, status, created_at")
+      .eq("user_id", user.id)
+      .eq("date", date)
+      .neq("status", "abandoned")
+      .order("created_at", { ascending: true }),
+    getIsRestDay(date),
+  ]);
 
   const sessionList = sessions ?? [];
 
@@ -49,21 +54,7 @@ export default async function DayPage({ params }: PageProps) {
           </Link>
         </div>
         <h1 className="text-xl font-bold text-white">{formatJapaneseDate(date)}</h1>
-        <div
-          className="rounded-xl p-4 space-y-3"
-          style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
-        >
-          <p className="text-sm" style={{ color: "#8E8E93" }}>
-            この日のトレーニング記録はありません
-          </p>
-          <Link
-            href={`/day/${date}/add`}
-            className="block text-center text-sm py-3 rounded-xl font-medium"
-            style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
-          >
-            ＋ 手動で種目を追加する
-          </Link>
-        </div>
+        <DayEmptyCard date={date} initialIsRest={isRestDay} label="この日は休息日にする" />
       </div>
     );
   }
@@ -206,51 +197,21 @@ export default async function DayPage({ params }: PageProps) {
 
       <h1 className="text-xl font-bold text-white">{formatJapaneseDate(date)}</h1>
 
-      {/* セッションはあるが完了セットがゼロ → セッションへの入口を表示 */}
+      {/* セッションはあるが完了セットがゼロ → セッションへの入口を表示（休息日トグル付き） */}
       {mergedExercises.length === 0 && (() => {
-        // editableSessions（in_progress / not_started / 完了セットあり）から優先して選ぶ
         const primary =
           editableSessions.find((s) => s.status === "in_progress") ??
           editableSessions.find((s) => s.status === "not_started") ??
           editableSessions[0] ??
-          sessionList[sessionList.length - 1]; // 万一 editableSessions が空でも最後のセッションを使う
+          sessionList[sessionList.length - 1];
 
-        if (primary) {
-          return (
-            <div
-              className="rounded-xl p-4 space-y-3"
-              style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
-            >
-              <p className="text-sm" style={{ color: "#8E8E93" }}>
-                まだセットが記録されていません
-              </p>
-              <Link
-                href={`/session/${primary.id}`}
-                className="block text-center text-sm py-3 rounded-xl font-medium"
-                style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
-              >
-                実績を記録する →
-              </Link>
-            </div>
-          );
-        }
-        // セッションが全て abandoned などでリンク先なし → 手動追加へ
         return (
-          <div
-            className="rounded-xl p-4 space-y-3"
-            style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
-          >
-            <p className="text-sm" style={{ color: "#8E8E93" }}>
-              この日のトレーニング記録はありません
-            </p>
-            <Link
-              href={`/day/${date}/add`}
-              className="block text-center text-sm py-3 rounded-xl font-medium"
-              style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
-            >
-              ＋ 手動で種目を追加する
-            </Link>
-          </div>
+          <DayEmptyCard
+            date={date}
+            initialIsRest={isRestDay}
+            sessionLink={primary ? `/session/${primary.id}` : undefined}
+            label="この日は休息日にする"
+          />
         );
       })()}
 
@@ -366,6 +327,30 @@ export default async function DayPage({ params }: PageProps) {
           </div>
         );
       })()}
+
+      {/* 完了セットがある日は休息日登録不可メッセージ */}
+      {mergedExercises.length > 0 && (
+        <div
+          className="rounded-xl px-4 py-3 flex items-center justify-between"
+          style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <span className="flex items-center gap-2 text-sm" style={{ color: "#636366" }}>
+            <span>🌙</span>
+            <span>この日は休息日にする</span>
+          </span>
+          <div
+            className="relative shrink-0 w-12 h-7 rounded-full overflow-hidden"
+            style={{ backgroundColor: "#3A3A3C", opacity: 0.4 }}
+          >
+            <span className="absolute top-1 w-5 h-5 rounded-full shadow" style={{ backgroundColor: "#8E8E93", left: "4px" }} />
+          </div>
+        </div>
+      )}
+      {mergedExercises.length > 0 && (
+        <p className="text-xs px-1" style={{ color: "#636366" }}>
+          実績が記録されているため休息日にはできません
+        </p>
+      )}
 
     </div>
   );

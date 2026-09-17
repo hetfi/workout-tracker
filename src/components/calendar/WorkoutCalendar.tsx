@@ -10,6 +10,8 @@ interface WorkoutCalendarProps {
   initialMonth: number;
   /** 過去3ヶ月分のデータをまとめて受け取る（"YYYY-MM-DD" → categories） */
   initialData: Record<string, MuscleCategory[]>;
+  /** 休息日の日付リスト（"YYYY-MM-DD"） */
+  restDays?: string[];
   /** 表示を許可する最古の年月 */
   oldestYear: number;
   oldestMonth: number;
@@ -27,9 +29,11 @@ export function WorkoutCalendar({
   initialYear,
   initialMonth,
   initialData,
+  restDays = [],
   oldestYear,
   oldestMonth,
 }: WorkoutCalendarProps) {
+  const restDaySet = new Set(restDays);
   const router = useRouter();
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);
@@ -135,6 +139,7 @@ export function WorkoutCalendar({
           const categories = initialData[dateStr] ?? [];
           const isToday = dateStr === todayStr;
           const isFuture = dateStr > todayStr;
+          const isRestDay = !isToday && !isFuture && restDaySet.has(dateStr);
 
           const handleClick = () => {
             if (isToday) {
@@ -172,19 +177,28 @@ export function WorkoutCalendar({
                 {day}
               </span>
 
-              {/* Category dots */}
+              {/* Category dots or rest day dash */}
               <div className="flex items-center justify-center h-1.5">
-                {categories.map((cat, i) => (
+                {isRestDay ? (
                   <span
-                    key={cat}
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: isToday ? "rgba(0,0,0,0.35)" : CATEGORY_COLORS[cat],
-                      marginLeft: i === 0 ? 0 : categories.length <= 3 ? "1px" : "-2px",
-                      boxShadow: `0 0 0 1px ${dotShadowColor}`,
-                    }}
-                  />
-                ))}
+                    className="text-xs leading-none font-bold"
+                    style={{ color: "#636366", fontSize: "10px", lineHeight: 1 }}
+                  >
+                    –
+                  </span>
+                ) : (
+                  categories.map((cat, i) => (
+                    <span
+                      key={cat}
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{
+                        backgroundColor: isToday ? "rgba(0,0,0,0.35)" : CATEGORY_COLORS[cat],
+                        marginLeft: i === 0 ? 0 : categories.length <= 3 ? "1px" : "-2px",
+                        boxShadow: `0 0 0 1px ${dotShadowColor}`,
+                      }}
+                    />
+                  ))
+                )}
               </div>
             </button>
           );
@@ -207,6 +221,10 @@ export function WorkoutCalendar({
             </span>
           </div>
         ))}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold" style={{ color: "#636366" }}>–</span>
+          <span className="text-xs" style={{ color: "#8E8E93" }}>休息日</span>
+        </div>
       </div>
     </div>
   );

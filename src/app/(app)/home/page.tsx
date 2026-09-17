@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
-import { getCalendarDataRange } from "./actions";
+import { getCalendarDataRange, getRestDaysInRange } from "./actions";
 import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar";
 import { CopyButton } from "@/components/ui/CopyButton";
 import {
@@ -352,10 +352,17 @@ export default async function HomePage() {
   const jstYear = parseInt(jst.toISOString().slice(0, 4));
   const jstMonth = parseInt(jst.toISOString().slice(5, 7));
 
-  const [{ todayStr, sessions, streakSessions, firstActiveSessionId, activeSessionIds, hasExercises }, calendarData] =
+  // カレンダー範囲の日付を計算（3ヶ月分）
+  const calStartDate = new Date(jstYear, jstMonth - 3, 1);
+  const calStartStr = `${calStartDate.getFullYear()}-${String(calStartDate.getMonth() + 1).padStart(2, "0")}-01`;
+  const calLastDay = new Date(jstYear, jstMonth, 0).getDate();
+  const calEndStr = `${jstYear}-${String(jstMonth).padStart(2, "0")}-${String(calLastDay).padStart(2, "0")}`;
+
+  const [{ todayStr, sessions, streakSessions, firstActiveSessionId, activeSessionIds, hasExercises }, calendarData, restDaysList] =
     await Promise.all([
       getTodayData(user.id),
       getCalendarDataRange(jstYear, jstMonth, 3),
+      getRestDaysInRange(calStartStr, calEndStr),
     ]);
 
   const hasAnySessions = sessions.length > 0;
@@ -524,6 +531,7 @@ export default async function HomePage() {
           initialYear={jstYear}
           initialMonth={jstMonth}
           initialData={calendarData}
+          restDays={restDaysList}
           oldestYear={new Date(jstYear, jstMonth - 3, 1).getFullYear()}
           oldestMonth={new Date(jstYear, jstMonth - 3, 1).getMonth() + 1}
         />

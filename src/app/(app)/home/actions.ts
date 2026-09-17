@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { classifyExercise, CATEGORY_ORDER, MuscleCategory } from "@/lib/muscleCategory";
+export { getRestDaysInRange } from "@/app/(app)/day/rest-day-actions";
 
 export async function startTrainingFromPlan(planId: string) {
   const supabase = await createClient();
