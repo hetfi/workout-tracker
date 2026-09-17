@@ -199,11 +199,11 @@ export default async function DayPage({ params }: PageProps) {
 
       {/* セッションはあるが完了セットがゼロ → セッションへの入口を表示（休息日トグル付き） */}
       {mergedExercises.length === 0 && (() => {
+        // editableSessions のみを候補とし、exercises/sets が空の completed セッションには sessionLink を渡さない
         const primary =
           editableSessions.find((s) => s.status === "in_progress") ??
           editableSessions.find((s) => s.status === "not_started") ??
-          editableSessions[0] ??
-          sessionList[sessionList.length - 1];
+          editableSessions[0];
 
         return (
           <DayEmptyCard
