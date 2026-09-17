@@ -48,7 +48,7 @@ export function TodayNoSessionCard({ date, initialIsRest, backTo = "/today" }: T
     >
       {isRest ? (
         <>
-          <p className="font-medium text-white">今日は休息日</p>
+          <p className="font-medium text-white">筋肉は休息日に育つ</p>
           <p className="text-sm" style={{ color: "#8E8E93" }}>
             記録する場合は休息日設定をOFFにしてください
           </p>
