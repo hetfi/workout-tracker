@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { Card } from "@/components/ui/Card";
 import { getCalendarDataRange } from "./actions";
 import { getRestDaysInRange } from "@/app/(app)/day/rest-day-actions";
 import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar";
@@ -343,6 +342,11 @@ function AchievementList({ exercises }: { exercises: AchievementExercise[] }) {
 
 // ---- Page ----
 
+function getJSTYearMonth(): { year: number; month: number } {
+  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return { year: parseInt(jst.toISOString().slice(0, 4)), month: parseInt(jst.toISOString().slice(5, 7)) };
+}
+
 export default async function HomePage() {
   const supabase = await createClient();
   const {
@@ -351,9 +355,7 @@ export default async function HomePage() {
   if (!user) return null;
 
   // 日付は独立して計算できるので getTodayData と getCalendarData を並列実行
-  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  const jstYear = parseInt(jst.toISOString().slice(0, 4));
-  const jstMonth = parseInt(jst.toISOString().slice(5, 7));
+  const { year: jstYear, month: jstMonth } = getJSTYearMonth();
 
   // カレンダー範囲の日付を計算（3ヶ月分）
   const calStartDate = new Date(jstYear, jstMonth - 3, 1);
