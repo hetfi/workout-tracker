@@ -658,7 +658,8 @@ export default function SessionPage({
         } catch {
           /* non-critical */
         }
-        router.push(`/day/${session?.date}`);
+        // ハードナビゲーションでキャッシュを回避し、必ずサーバーから最新データを取得
+        window.location.replace(`/day/${session?.date}`);
         return;
       }
       const msg =
@@ -686,7 +687,7 @@ export default function SessionPage({
       } catch {
         /* non-critical */
       }
-      router.push(`/day/${session?.date}`);
+      window.location.replace(`/day/${session?.date}`);
     }
   };
 
