@@ -35,10 +35,11 @@ export function TodayNoSessionCard({ date, initialIsRest, backTo = "/today" }: T
 
   const toggleRest = async () => {
     if (isPending) return;
-    setIsPending(true);
     const newVal = !isRest;
+    setIsRest(newVal); // 楽観的更新：サーバー応答前に即座に反映
+    setIsPending(true);
     const result = await setRestDay(date, newVal);
-    if (!result.error) setIsRest(newVal);
+    if (result.error) setIsRest(!newVal); // エラー時のみ元に戻す
     setIsPending(false);
   };
 
@@ -100,7 +101,7 @@ export function TodayNoSessionCard({ date, initialIsRest, backTo = "/today" }: T
       )}
 
       {/* Rest day toggle */}
-      <div className="pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <button
           onClick={toggleRest}
           disabled={isPending}

@@ -38,12 +38,13 @@ export function DayEmptyCard({ date, initialIsRest, sessionLink, label }: DayEmp
 
   const toggleRest = async () => {
     if (isPending) return;
-    setIsPending(true);
     const newVal = !isRest;
+    setIsRest(newVal); // 楽観的更新：サーバー応答前に即座に反映
+    setIsPending(true);
     const result = await setRestDay(date, newVal);
-    if (!result.error) {
-      setIsRest(newVal);
-      // カレンダーのドット更新のためにホームページキャッシュを無効化
+    if (result.error) {
+      setIsRest(!newVal); // エラー時のみ元に戻す
+    } else {
       router.refresh();
     }
     setIsPending(false);
@@ -110,7 +111,7 @@ export function DayEmptyCard({ date, initialIsRest, sessionLink, label }: DayEmp
       )}
 
       {/* 休息日トグル */}
-      <div className="pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <button
           onClick={toggleRest}
           disabled={isPending}

@@ -44,7 +44,7 @@ export function TodayRestDayCard({ date }: TodayRestDayCardProps) {
         ＋ 手動で種目を追加する
       </div>
 
-      <div className="pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <button
           onClick={unmark}
           disabled={isPending}
