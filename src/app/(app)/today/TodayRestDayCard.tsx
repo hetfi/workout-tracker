@@ -27,9 +27,6 @@ export function TodayRestDayCard({ date }: TodayRestDayCardProps) {
       style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
     >
       <p className="font-medium text-white">休息中に筋肉は育っています！</p>
-      <p className="text-sm" style={{ color: "#8E8E93" }}>
-        記録する場合は休息日設定をOFFにしてください
-      </p>
 
       <div
         className="flex items-center justify-center gap-2 w-full text-sm py-3 rounded-xl font-medium"
