@@ -24,7 +24,6 @@ export function TodayRestDayRow({ date }: { date: string }) {
       style={{ opacity: isPending ? 0.6 : 1 }}
     >
       <span className="flex items-center gap-2 text-sm" style={{ color: "#8E8E93" }}>
-        <span>🌙</span>
         <span>今日は休息日にする</span>
       </span>
       <div

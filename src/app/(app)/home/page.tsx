@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { getCalendarDataRange } from "./actions";
 import { getRestDaysInRange } from "@/app/(app)/day/rest-day-actions";
 import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar";
+import { TodayNoSessionCard } from "@/app/(app)/today/TodayNoSessionCard";
 import { CopyButton } from "@/components/ui/CopyButton";
 import {
   classifyExercise,
@@ -366,6 +367,7 @@ export default async function HomePage() {
       getRestDaysInRange(calStartStr, calEndStr),
     ]);
 
+  const isRestDay = restDaysList.includes(todayStr);
   const hasAnySessions = sessions.length > 0;
   const hasActiveSessions = sessions.some(
     (s) => s.status === "in_progress" || s.status === "not_started"
@@ -416,29 +418,29 @@ export default async function HomePage() {
 
       {showAddUI ? (
         /* セッションなし or 種目0件 → 作成オプション */
-        <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 space-y-3">
-          <p className="text-sm text-[#8E8E93]">
-            {hasAnySessions ? "種目を追加してトレーニングを始めましょう" : "今日のトレーニングは未登録です"}
-          </p>
-          <Link
-            href={`/import?date=${todayStr}`}
-            className="block text-center text-sm py-3 rounded-xl font-semibold"
-            style={{ backgroundColor: "#CAFF4D", color: "#0D0D0F" }}
-          >
-            ChatGPTから取り込む
-          </Link>
-          <Link
-            href={
-              firstActiveSessionId
-                ? `/day/${todayStr}/add?sessionId=${firstActiveSessionId}&backTo=/home`
-                : `/day/${todayStr}/add?backTo=/home`
-            }
-            className="block text-center text-sm py-3 rounded-xl font-medium"
-            style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
-          >
-            ＋ 手動で種目を追加する
-          </Link>
-        </div>
+        !hasAnySessions ? (
+          /* セッション自体なし → 休息日トグル付きカード */
+          <TodayNoSessionCard date={todayStr} initialIsRest={isRestDay} backTo="/home" />
+        ) : (
+          /* セッションはあるが種目0件 → シンプルな追加UI */
+          <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4 space-y-3">
+            <p className="text-sm text-[#8E8E93]">種目を追加してトレーニングを始めましょう</p>
+            <Link
+              href={`/import?date=${todayStr}`}
+              className="block text-center text-sm py-3 rounded-xl font-semibold"
+              style={{ backgroundColor: "#CAFF4D", color: "#0D0D0F" }}
+            >
+              ChatGPTから取り込む
+            </Link>
+            <Link
+              href={`/day/${todayStr}/add?sessionId=${firstActiveSessionId}&backTo=/home`}
+              className="block text-center text-sm py-3 rounded-xl font-medium"
+              style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
+            >
+              ＋ 手動で種目を追加する
+            </Link>
+          </div>
+        )
       ) : allComplete ? (
         /* 全完了 → お疲れ様 + 今日の実績 */
         (() => {

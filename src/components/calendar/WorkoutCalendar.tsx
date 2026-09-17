@@ -182,7 +182,7 @@ export function WorkoutCalendar({
                 {isRestDay ? (
                   <span
                     className="text-xs leading-none font-bold"
-                    style={{ color: "#636366", fontSize: "10px", lineHeight: 1 }}
+                    style={{ color: "#AEAEB2", fontSize: "10px", lineHeight: 1 }}
                   >
                     –
                   </span>
@@ -222,7 +222,7 @@ export function WorkoutCalendar({
           </div>
         ))}
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-bold" style={{ color: "#636366" }}>–</span>
+          <span className="text-xs font-bold" style={{ color: "#AEAEB2" }}>–</span>
           <span className="text-xs" style={{ color: "#8E8E93" }}>休息日</span>
         </div>
       </div>

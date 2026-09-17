@@ -335,7 +335,6 @@ export default async function DayPage({ params }: PageProps) {
           style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
         >
           <span className="flex items-center gap-2 text-sm" style={{ color: "#636366" }}>
-            <span>🌙</span>
             <span>この日は休息日にする</span>
           </span>
           <div

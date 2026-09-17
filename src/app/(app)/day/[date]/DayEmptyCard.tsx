@@ -85,7 +85,7 @@ export function DayEmptyCard({ date, initialIsRest, sessionLink, label }: DayEmp
             className="flex items-center justify-center gap-2 w-full text-sm py-3 rounded-xl font-medium"
             style={{ backgroundColor: "#3A3A3C", color: "#48484A" }}
           >
-            🏋️ 実績を記録する
+            実績を記録する
           </div>
         ) : (
           <Link
@@ -93,7 +93,7 @@ export function DayEmptyCard({ date, initialIsRest, sessionLink, label }: DayEmp
             className="flex items-center justify-center gap-2 w-full text-sm py-3 rounded-xl font-semibold"
             style={{ backgroundColor: "#CAFF4D", color: "#0D0D0F" }}
           >
-            🏋️ 実績を記録する
+            実績を記録する
           </Link>
         )
       )}
@@ -118,7 +118,6 @@ export function DayEmptyCard({ date, initialIsRest, sessionLink, label }: DayEmp
           style={{ opacity: isPending ? 0.6 : 1 }}
         >
           <span className="flex items-center gap-2 text-sm" style={{ color: "#8E8E93" }}>
-            <span>🌙</span>
             <span>{toggleLabel}</span>
           </span>
           <ToggleSwitch isOn={isRest} />

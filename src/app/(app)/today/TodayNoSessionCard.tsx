@@ -7,6 +7,7 @@ import { setRestDay } from "@/app/(app)/day/rest-day-actions";
 interface TodayNoSessionCardProps {
   date: string;
   initialIsRest: boolean;
+  backTo?: string;
 }
 
 function ToggleSwitch({ isOn }: { isOn: boolean }) {
@@ -27,7 +28,7 @@ function ToggleSwitch({ isOn }: { isOn: boolean }) {
   );
 }
 
-export function TodayNoSessionCard({ date, initialIsRest }: TodayNoSessionCardProps) {
+export function TodayNoSessionCard({ date, initialIsRest, backTo = "/today" }: TodayNoSessionCardProps) {
   const [isRest, setIsRest] = useState(initialIsRest);
   const [isPending, setIsPending] = useState(false);
 
@@ -89,7 +90,7 @@ export function TodayNoSessionCard({ date, initialIsRest }: TodayNoSessionCardPr
         </div>
       ) : (
         <Link
-          href={`/day/${date}/add?backTo=/today`}
+          href={`/day/${date}/add?backTo=${backTo}`}
           className="flex items-center justify-center gap-2 w-full text-sm py-3 rounded-xl font-medium"
           style={{ backgroundColor: "#3A3A3C", color: "#FFFFFF" }}
         >
@@ -106,7 +107,6 @@ export function TodayNoSessionCard({ date, initialIsRest }: TodayNoSessionCardPr
           style={{ opacity: isPending ? 0.6 : 1 }}
         >
           <span className="flex items-center gap-2 text-sm" style={{ color: "#8E8E93" }}>
-            <span>🌙</span>
             <span>今日は休息日にする</span>
           </span>
           <ToggleSwitch isOn={isRest} />
