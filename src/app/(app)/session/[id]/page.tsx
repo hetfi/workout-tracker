@@ -638,8 +638,18 @@ export default function SessionPage({
 
   // ---- Complete session ----
   const handleComplete = async () => {
-    // If already completed (edit mode), just go back
+    // If already completed (edit mode)
     if (session?.status === "completed") {
+      // 全種目削除済みなら「記録なし」状態に戻す
+      if (exercises.length === 0) {
+        try {
+          await updateSession(sessionId, { status: "abandoned" });
+        } catch {
+          /* non-critical */
+        }
+        window.location.replace(`/day/${session?.date}`);
+        return;
+      }
       router.back();
       return;
     }
