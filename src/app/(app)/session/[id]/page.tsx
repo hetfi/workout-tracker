@@ -652,7 +652,12 @@ export default function SessionPage({
     // セットがゼロ（プリセット未生成など）か未完了あり → 完了扱いにしない
     if (pendingCount > 0 || totalCount === 0) {
       if (isPastSession) {
-        // 過去日: 確認なしでサマリページへ（0セットはサマリが「未記録」表示になる）
+        // 過去日・0セット: セッションを破棄してサマリへ（「記録なし」状態で表示）
+        try {
+          await updateSession(sessionId, { status: "abandoned" });
+        } catch {
+          /* non-critical */
+        }
         router.push(`/day/${session?.date}`);
         return;
       }
