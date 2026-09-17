@@ -357,7 +357,7 @@ export default async function HomePage() {
       {/* Date header */}
       <div>
         <p className="text-xs text-[#8E8E93]">{formatJapaneseDate(todayStr)}</p>
-        <h1 className="text-2xl font-bold text-white">今日の予定・実績</h1>
+        <h1 className="text-xl font-bold text-white">今日の予定・実績</h1>
       </div>
 
       {/* Streak */}
@@ -459,7 +459,7 @@ export default async function HomePage() {
 
       {/* Calendar */}
       <div className="mt-6">
-        <h2 className="text-2xl font-bold text-white mb-3">
+        <h2 className="text-xl font-bold text-white mb-3">
           トレーニング記録
         </h2>
         <WorkoutCalendar
