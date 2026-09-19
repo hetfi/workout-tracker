@@ -96,30 +96,54 @@ interface ExerciseHistoryData {
 async function getLatestHistoryForExercises(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
-  exerciseNames: string[]
+  exerciseNames: string[],
+  beforeDate?: string
 ): Promise<Record<string, ExerciseHistoryData>> {
   if (exerciseNames.length === 0) return {};
 
-  // !inner で完了セットが0件の completed セッションを除外しつつ1クエリで取得
+  // Step 1: 有効セッションID+日付を取得
+  let sessionQuery = supabase
+    .from("workout_sessions")
+    .select("id, date")
+    .eq("user_id", userId)
+    .in("status", ["completed", "in_progress"]);
+  if (beforeDate) {
+    sessionQuery = sessionQuery.lt("date", beforeDate);
+  }
+  const { data: sessionRows } = await sessionQuery;
+  if (!sessionRows || sessionRows.length === 0) return {};
+
+  const sessionDateMap = new Map<string, string>(
+    sessionRows.map((r) => [r.id as string, r.date as string])
+  );
+  const sessionIds = [...sessionDateMap.keys()];
+
+  // Step 2: 種目履歴を取得
   const { data: seRows } = await supabase
     .from("workout_session_exercises")
     .select(`
       exercise_name,
+      session_id,
       planned_reps_min,
       planned_reps_max,
-      workout_sessions!inner(status),
       workout_sets!inner(set_number, status)
     `)
     .eq("user_id", userId)
+    .in("session_id", sessionIds)
     .in("exercise_name", exerciseNames)
-    .eq("workout_sessions.status", "completed")
     .eq("workout_sets.status", "completed")
-    .order("created_at", { ascending: false })
-    .limit(exerciseNames.length * 10);
+    .limit(exerciseNames.length * 50);
 
-  // 種目名ごとに最新1件だけ保持（先頭が最新）
+  // created_at ではなくセッションの date で降順ソート
+  const sorted = ((seRows ?? []) as Record<string, unknown>[]).sort((a, b) => {
+    const dateA = sessionDateMap.get(a.session_id as string) ?? "";
+    const dateB = sessionDateMap.get(b.session_id as string) ?? "";
+    return dateB.localeCompare(dateA);
+  });
+
+  // 種目名ごとに最新1件だけ保持
   const result: Record<string, ExerciseHistoryData> = {};
-  for (const row of seRows ?? []) {
+  for (const row of sorted) {
     const r = row as Record<string, unknown>;
     const name = r.exercise_name as string;
     if (result[name]) continue;
@@ -176,7 +200,7 @@ export async function addManualSession(
   const exerciseNames0 = exercises.map((e) => e.name);
   const [restMap, historyMap] = await Promise.all([
     getRestSecondsMap(supabase, user.id, exerciseNames0),
-    getLatestHistoryForExercises(supabase, user.id, exerciseNames0),
+    getLatestHistoryForExercises(supabase, user.id, exerciseNames0, date),
   ]);
   exercises = exercises.map((e) => {
     const hist = historyMap[e.name];
@@ -312,10 +336,18 @@ export async function addExercisesToSession(
 
   const maxSortOrder = existing?.[0]?.sort_order ?? -1;
 
+  // セッション日付を取得（history クエリの日付フィルタに使用）
+  const { data: sessionRow } = await supabase
+    .from("workout_sessions")
+    .select("date")
+    .eq("id", sessionId)
+    .single();
+  const sessionDate = sessionRow?.date as string | undefined;
+
   const exerciseNamesAdd = exercises.map((e) => e.name);
   const [restMap, historyMap] = await Promise.all([
     getRestSecondsMap(supabase, user.id, exerciseNamesAdd),
-    getLatestHistoryForExercises(supabase, user.id, exerciseNamesAdd),
+    getLatestHistoryForExercises(supabase, user.id, exerciseNamesAdd, sessionDate),
   ]);
   exercises = exercises.map((e) => {
     const hist = historyMap[e.name];

@@ -203,34 +203,95 @@ export async function createSessionFromParsedExercises(
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const { data: sessionData, error: sessionError } = await supabase
-    .from("workout_sessions")
-    .insert({
-      user_id: user.id,
-      plan_id: plan.id,
-      date: plan.date,
-      title: plan.title,
-      status: "not_started",
-    })
-    .select()
-    .single();
+  const exerciseNames = exercises.map((ex) => ex.name);
+
+  // セッション作成と並列で有効セッションID+日付を先取得（2ステップ履歴クエリ）
+  const sessionHistoryQuery = exerciseNames.length > 0
+    ? supabase
+        .from("workout_sessions")
+        .select("id, date")
+        .eq("user_id", user.id)
+        .in("status", ["completed", "in_progress"])
+        .lt("date", plan.date)
+    : Promise.resolve({ data: [] as { id: string; date: string }[] });
+
+  const [{ data: sessionData, error: sessionError }, { data: validSessions }] = await Promise.all([
+    supabase
+      .from("workout_sessions")
+      .insert({
+        user_id: user.id,
+        plan_id: plan.id,
+        date: plan.date,
+        title: plan.title,
+        status: "not_started",
+      })
+      .select()
+      .single(),
+    sessionHistoryQuery,
+  ]);
 
   if (sessionError) throw sessionError;
   const session = toSession(sessionData);
 
+  // 有効セッションIDで種目履歴を取得（セッション日付降順でソート）
+  const historyMap: Record<string, { sets: number; repsMin: number; repsMax: number }> = {};
+  const sessionDateMap = new Map<string, string>(
+    (validSessions ?? []).map((r) => [r.id as string, r.date as string])
+  );
+  const validSessionIds = [...sessionDateMap.keys()];
+  if (exerciseNames.length > 0 && validSessionIds.length > 0) {
+    const { data: histRows } = await supabase
+      .from("workout_session_exercises")
+      .select(`
+        exercise_name,
+        session_id,
+        planned_reps_min,
+        planned_reps_max,
+        workout_sets!inner(set_number, status)
+      `)
+      .eq("user_id", user.id)
+      .in("session_id", validSessionIds)
+      .in("exercise_name", exerciseNames)
+      .eq("workout_sets.status", "completed")
+      .limit(exerciseNames.length * 50);
+
+    // created_at ではなくセッションの date で降順ソート
+    const sortedRows = ((histRows ?? []) as Record<string, unknown>[]).sort((a, b) => {
+      const dateA = sessionDateMap.get(a.session_id as string) ?? "";
+      const dateB = sessionDateMap.get(b.session_id as string) ?? "";
+      return dateB.localeCompare(dateA);
+    });
+
+    for (const row of sortedRows) {
+      const name = row.exercise_name as string;
+      if (historyMap[name]) continue;
+      const sets = (row.workout_sets as Record<string, unknown>[]) ?? [];
+      const uniqueSetNums = new Set(sets.map((s) => Number(s.set_number)));
+      if (uniqueSetNums.size === 0) continue;
+      historyMap[name] = {
+        sets: uniqueSetNums.size,
+        repsMin: Number(row.planned_reps_min ?? 0),
+        repsMax: Number(row.planned_reps_max ?? 0),
+      };
+    }
+  }
+
   if (exercises.length > 0) {
-    const exerciseRows = exercises.map((ex, i) => ({
-      user_id: user.id,
-      session_id: session.id,
-      exercise_name: ex.name,
-      planned_sets: ex.sets,
-      planned_reps_min: ex.repsTarget.min,
-      planned_reps_max: ex.repsTarget.max,
-      rest_seconds: ex.restSeconds,
-      sort_order: i,
-      notes: ex.notes ?? null,
-      is_one_arm: isOneArmByName[ex.name] ?? ex.isOneArm ?? false,
-    }));
+    const exerciseRows = exercises.map((ex, i) => {
+      const hist = historyMap[ex.name];
+      return {
+        user_id: user.id,
+        session_id: session.id,
+        exercise_name: ex.name,
+        planned_sets: hist ? hist.sets : ex.sets,
+        planned_reps_min: hist ? hist.repsMin : ex.repsTarget.min,
+        planned_reps_max: hist ? hist.repsMax : ex.repsTarget.max,
+        rest_seconds: ex.restSeconds,
+        sort_order: i,
+        notes: ex.notes ?? null,
+        is_one_arm: isOneArmByName[ex.name] ?? ex.isOneArm ?? false,
+      };
+    });
 
     const { error: exError } = await supabase
       .from("workout_session_exercises")
@@ -457,43 +518,73 @@ export async function getPreviousSessionData(
 }
 
 /**
- * 複数種目の前回セッションデータを 1 回のクエリで一括取得（N+1 解消）。
+ * 複数種目の前回セッションデータを取得。
+ * 2ステップクエリ: まず有効セッションIDを取得し、次にそのIDで種目・セットを絞る。
  * 戻り値は exerciseName をキーとした Map。
  */
 export async function getPreviousSessionDataBatch(
-  exercises: { exerciseId: string | null; exerciseName: string }[]
+  exercises: { exerciseId: string | null; exerciseName: string }[],
+  beforeDate?: string
 ): Promise<Map<string, PreviousExerciseData | null>> {
   const resultMap = new Map<string, PreviousExerciseData | null>();
   if (exercises.length === 0) return resultMap;
 
   const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return resultMap;
+
   const names = [...new Set(exercises.map((e) => e.exerciseName))];
 
+  // Step 1: 有効セッションID+日付を取得（completed / in_progress、beforeDate より前）
+  let sessionQuery = supabase
+    .from("workout_sessions")
+    .select("id, date")
+    .eq("user_id", user.id)
+    .in("status", ["completed", "in_progress"]);
+  if (beforeDate) {
+    sessionQuery = sessionQuery.lt("date", beforeDate);
+  }
+  const { data: sessionRows } = await sessionQuery;
+  if (!sessionRows || sessionRows.length === 0) return resultMap;
+
+  const sessionDateMap = new Map<string, string>(
+    sessionRows.map((r) => [r.id as string, r.date as string])
+  );
+  const sessionIds = [...sessionDateMap.keys()];
+
+  // Step 2: そのセッションIDの種目・完了セットを取得
   const { data } = await supabase
     .from("workout_session_exercises")
     .select(
       `
       exercise_id,
       exercise_name,
-      created_at,
-      workout_sessions!inner(status),
+      session_id,
       workout_sets!inner(set_number, weight, reps, status)
     `
     )
-    .eq("workout_sessions.status", "completed")
-    .eq("workout_sets.status", "completed")
+    .eq("user_id", user.id)
+    .in("session_id", sessionIds)
     .in("exercise_name", names)
-    .order("created_at", { ascending: false })
-    .limit(names.length * 10);
+    .eq("workout_sets.status", "completed")
+    .limit(names.length * 50);
 
-  // created_at 降順 / !inner により完了セットが0件のセッションは除外済み
+  // created_at ではなくセッションの date で降順ソート（再インポートによる created_at のズレを防ぐ）
+  const sorted = ((data ?? []) as Record<string, unknown>[]).sort((a, b) => {
+    const dateA = sessionDateMap.get(a.session_id as string) ?? "";
+    const dateB = sessionDateMap.get(b.session_id as string) ?? "";
+    return dateB.localeCompare(dateA);
+  });
+
   const seen = new Set<string>();
-  for (const row of data ?? []) {
+  for (const row of sorted) {
     const r = row as Record<string, unknown>;
     const name = r.exercise_name as string;
     if (seen.has(name)) continue;
     const completedSets = (r.workout_sets as Record<string, unknown>[]) ?? [];
-    if (completedSets.length === 0) continue; // 念のため二重チェック
+    if (completedSets.length === 0) continue;
     seen.add(name);
     resultMap.set(name, {
       exerciseId: (r.exercise_id as string) ?? null,
