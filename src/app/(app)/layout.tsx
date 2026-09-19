@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { VisibilityRefresh } from "@/components/VisibilityRefresh";
+import { TimerProvider } from "@/context/TimerContext";
+import { GlobalTimerOverlay } from "@/components/training/GlobalTimerOverlay";
 
 async function NavBar() {
   return (
@@ -70,10 +72,13 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="min-h-screen pb-20">
-      <VisibilityRefresh />
-      <main className="max-w-lg mx-auto px-4 pt-safe-top">{children}</main>
-      <NavBar />
-    </div>
+    <TimerProvider>
+      <div className="min-h-screen pb-20">
+        <VisibilityRefresh />
+        <GlobalTimerOverlay />
+        <main className="max-w-lg mx-auto px-4 pt-safe-top">{children}</main>
+        <NavBar />
+      </div>
+    </TimerProvider>
   );
 }

@@ -38,6 +38,7 @@ import {
   createTimerState,
   fromRestTimer,
 } from "@/lib/timer";
+import { useTimerContext } from "@/context/TimerContext";
 import {
   classifyExercise,
   CATEGORY_LABELS,
@@ -136,6 +137,27 @@ export default function SessionPage({
   });
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ---- Sync timer state to global context (for cross-page persistence) ----
+  const {
+    setTimerState: setContextTimerState,
+    setExerciseName: setContextExerciseName,
+    setSoundEnabled,
+    setVibrationEnabled,
+  } = useTimerContext();
+
+  useEffect(() => {
+    setContextTimerState(timerState);
+  }, [timerState, setContextTimerState]);
+
+  useEffect(() => {
+    setContextExerciseName(activeExerciseName);
+  }, [activeExerciseName, setContextExerciseName]);
+
+  useEffect(() => {
+    setSoundEnabled(settings.soundEnabled);
+    setVibrationEnabled(settings.vibrationEnabled);
+  }, [settings.soundEnabled, settings.vibrationEnabled, setSoundEnabled, setVibrationEnabled]);
+
   // ---- Load session data ----
   useEffect(() => {
     const load = async () => {
@@ -212,7 +234,7 @@ export default function SessionPage({
         const exercisesNeedingPresets = enrichedExData.filter(
           (ex) => grouped[ex.id].length === 0
         );
-        const prevDataMap = await getPreviousSessionDataBatch(exercisesNeedingPresets);
+        const prevDataMap = await getPreviousSessionDataBatch(exercisesNeedingPresets, sessionData.date);
         for (const ex of exercisesNeedingPresets) {
           const prev = prevDataMap.get(ex.exerciseName) ?? null;
           const preset = buildExercisePreset(ex, prev);

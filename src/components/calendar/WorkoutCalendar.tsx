@@ -187,7 +187,7 @@ export function WorkoutCalendar({
                       key={cat}
                       className="w-1.5 h-1.5 rounded-full shrink-0"
                       style={{
-                        backgroundColor: isToday ? "rgba(0,0,0,0.35)" : CATEGORY_COLORS[cat],
+                        backgroundColor: CATEGORY_COLORS[cat],
                         marginLeft: i === 0 ? 0 : categories.length <= 3 ? "1px" : "-2px",
                         boxShadow: `0 0 0 1px ${dotShadowColor}`,
                       }}
