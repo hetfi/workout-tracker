@@ -336,21 +336,21 @@ async function listRecentSessions(
 
   const supabase = createServiceRoleClient();
 
-  let query = supabase
+  let baseQuery = supabase
     .from("workout_sessions")
     .select("id, date, title, status, started_at, completed_at")
     .eq("user_id", userId)
-    .eq("status", "completed")
-    .order("date", { ascending: false })
-    .limit(limit);
+    .eq("status", "completed");
 
   if (months != null) {
     const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
     jst.setMonth(jst.getMonth() - months);
-    query = query.gte("date", jst.toISOString().slice(0, 10));
+    baseQuery = baseQuery.gte("date", jst.toISOString().slice(0, 10));
   }
 
-  const { data: sessions, error } = await query;
+  const { data: sessions, error } = await baseQuery
+    .order("date", { ascending: false })
+    .limit(limit);
 
   if (error) return { content: [{ type: "text", text: "データ取得に失敗しました" }], isError: true };
   if (!sessions || sessions.length === 0) {
