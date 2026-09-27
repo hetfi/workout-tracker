@@ -196,6 +196,13 @@ export function validateClient(
   redirectUri: string
 ): boolean {
   const allowedClientId = process.env.MCP_OAUTH_CLIENT_ID;
+  if (clientId !== allowedClientId) return false;
+
+  // Accept any redirect URI from chatgpt.com connector OAuth path,
+  // allowing multiple users to create their own plugin instances.
+  if (redirectUri.startsWith("https://chatgpt.com/connector/oauth/")) return true;
+
+  // Fallback: also accept explicitly listed URIs (comma-separated)
   const allowedUris = (process.env.MCP_OAUTH_REDIRECT_URIS ?? "").split(",").map((u) => u.trim()).filter(Boolean);
-  return clientId === allowedClientId && allowedUris.includes(redirectUri);
+  return allowedUris.includes(redirectUri);
 }
