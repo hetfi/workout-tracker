@@ -10,6 +10,18 @@ import type { McpTool, McpToolResult } from "./types";
 
 export const TOOLS: McpTool[] = [
   {
+    name: "delete_today_session",
+    description:
+      "本日の未開始トレーニングセッションを削除します。メニューを作り直す前の準備や、休息日に変更する前処理として使います。進行中・完了済みのセッションは削除できません。",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "set_rest_day",
+    description:
+      "本日を休息日として登録します。今日の未開始セッションがある場合は同時に削除します。",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
     name: "create_today_session",
     description:
       "[WORKOUT]...[/WORKOUT] 形式のテキストを受け取り、本日のトレーニングセッションとしてアプリに登録します。登録後はアプリのホーム画面に反映されます。",
@@ -150,6 +162,77 @@ function formatDuration(startedAt: string | null, completedAt: string | null): s
 }
 
 // ---- Tool handlers ----
+
+async function deleteTodaySession(
+  userId: string
+): Promise<McpToolResult> {
+  const supabase = createServiceRoleClient();
+  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const todayStr = jst.toISOString().slice(0, 10);
+
+  const { data: session } = await supabase
+    .from("workout_sessions")
+    .select("id, title, status")
+    .eq("user_id", userId)
+    .eq("date", todayStr)
+    .in("status", ["not_started", "in_progress", "completed"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!session) {
+    return { content: [{ type: "text", text: `本日（${todayStr}）のセッションはありません。` }] };
+  }
+
+  const s = session as Record<string, unknown>;
+  if (s.status !== "not_started") {
+    return {
+      content: [{ type: "text", text: `セッション「${s.title}」は${s.status === "in_progress" ? "進行中" : "完了済み"}のため削除できません。` }],
+      isError: true,
+    };
+  }
+
+  await supabase.from("workout_sessions").delete().eq("id", s.id).eq("user_id", userId);
+
+  return { content: [{ type: "text", text: `✅ 本日のセッション「${s.title}」を削除しました。` }] };
+}
+
+async function setRestDay(
+  userId: string
+): Promise<McpToolResult> {
+  const supabase = createServiceRoleClient();
+  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const todayStr = jst.toISOString().slice(0, 10);
+
+  // Delete today's not_started session if exists
+  const { data: session } = await supabase
+    .from("workout_sessions")
+    .select("id, title, status")
+    .eq("user_id", userId)
+    .eq("date", todayStr)
+    .eq("status", "not_started")
+    .maybeSingle();
+
+  if (session) {
+    const s = session as Record<string, unknown>;
+    await supabase.from("workout_sessions").delete().eq("id", s.id).eq("user_id", userId);
+  }
+
+  // Register rest day (upsert to handle duplicates)
+  const { error } = await supabase
+    .from("rest_days")
+    .upsert({ user_id: userId, date: todayStr }, { onConflict: "user_id,date", ignoreDuplicates: true });
+
+  if (error) {
+    return { content: [{ type: "text", text: "休息日の登録に失敗しました" }], isError: true };
+  }
+
+  const lines = [`✅ 本日（${todayStr}）を休息日として登録しました。`];
+  if (session) lines.push(`（トレーニングセッション「${(session as Record<string, unknown>).title}」も削除しました）`);
+  lines.push("アプリのホーム画面を更新すると反映されます。");
+
+  return { content: [{ type: "text", text: lines.join("\n") }] };
+}
 
 async function createTodaySession(
   userId: string,
@@ -450,6 +533,10 @@ export async function callTool(
 ): Promise<McpToolResult> {
   const safeArgs = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
   switch (name) {
+    case "delete_today_session":
+      return deleteTodaySession(userId);
+    case "set_rest_day":
+      return setRestDay(userId);
     case "create_today_session":
       return createTodaySession(userId, safeArgs);
     case "list_recent_sessions":
