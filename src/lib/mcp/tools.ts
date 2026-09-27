@@ -10,6 +10,22 @@ import type { McpTool, McpToolResult } from "./types";
 
 export const TOOLS: McpTool[] = [
   {
+    name: "create_today_session",
+    description:
+      "[WORKOUT]...[/WORKOUT] 形式のテキストを受け取り、本日のトレーニングセッションとしてアプリに登録します。登録後はアプリのホーム画面に反映されます。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workout_text: {
+          type: "string",
+          description:
+            "[WORKOUT]〜[/WORKOUT] を含む形式のワークアウトテキスト。例:\n[WORKOUT]\ndate: 2026-09-27\ntitle: 背中・肩\nexercise: ラットプルダウン | muscle: back | sets: 3 | reps: 8-12 | rest: 120 | one_arm: false\n[/WORKOUT]",
+        },
+      },
+      required: ["workout_text"],
+    },
+  },
+  {
     name: "list_recent_sessions",
     description:
       "最近のトレーニングセッション一覧を取得します。日付・タイトル・総セット数・運動時間を返します。",
@@ -59,6 +75,65 @@ export const TOOLS: McpTool[] = [
   },
 ];
 
+// ---- Workout text parser ----
+
+interface ParsedWorkoutExercise {
+  name: string;
+  sets: number;
+  repsMin: number;
+  repsMax: number;
+  restSeconds: number;
+  isOneArm: boolean;
+  isDuration: boolean;
+}
+
+interface ParsedWorkout {
+  title: string;
+  exercises: ParsedWorkoutExercise[];
+}
+
+function parseWorkoutText(text: string): ParsedWorkout | null {
+  const match = text.match(/\[WORKOUT\]([\s\S]*?)\[\/WORKOUT\]/);
+  if (!match) return null;
+  const lines = match[1].split("\n").map((l) => l.trim()).filter(Boolean);
+
+  let title = "";
+  const exercises: ParsedWorkoutExercise[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("title:")) {
+      title = line.slice("title:".length).trim();
+    } else if (line.startsWith("exercise:")) {
+      const parts = line.split("|").map((p) => p.trim());
+      const name = parts[0].replace(/^exercise:\s*/, "").trim();
+      const get = (key: string) => {
+        const part = parts.find((p) => p.startsWith(key + ":"));
+        return part ? part.slice(key.length + 1).trim() : "";
+      };
+
+      const sets = Math.max(1, parseInt(get("sets")) || 1);
+      const restSeconds = parseInt(get("rest")) || 60;
+      const isOneArm = get("one_arm") === "true";
+      const durationStr = get("duration");
+      const repsStr = get("reps");
+
+      let repsMin = 0, repsMax = 0, isDuration = false;
+      if (durationStr) {
+        isDuration = true;
+        repsMin = repsMax = parseInt(durationStr) || 0;
+      } else if (repsStr) {
+        const [minStr, maxStr] = repsStr.split("-");
+        repsMin = parseInt(minStr) || 0;
+        repsMax = parseInt(maxStr ?? minStr) || repsMin;
+      }
+
+      if (name) exercises.push({ name, sets, repsMin, repsMax, restSeconds, isOneArm, isDuration });
+    }
+  }
+
+  return title && exercises.length > 0 ? { title, exercises } : null;
+}
+
 // ---- Formatters ----
 
 function formatJpDate(dateStr: string): string {
@@ -75,6 +150,95 @@ function formatDuration(startedAt: string | null, completedAt: string | null): s
 }
 
 // ---- Tool handlers ----
+
+async function createTodaySession(
+  userId: string,
+  args: Record<string, unknown>
+): Promise<McpToolResult> {
+  const workoutText = String(args.workout_text ?? "");
+  const parsed = parseWorkoutText(workoutText);
+  if (!parsed) {
+    return {
+      content: [{ type: "text", text: "[WORKOUT]...[/WORKOUT] 形式のテキストを workout_text に渡してください。" }],
+      isError: true,
+    };
+  }
+
+  const supabase = createServiceRoleClient();
+
+  // Today's date in JST
+  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const todayStr = jst.toISOString().slice(0, 10);
+
+  // Duplicate check
+  const { data: existing } = await supabase
+    .from("workout_sessions")
+    .select("id, title")
+    .eq("user_id", userId)
+    .eq("date", todayStr)
+    .in("status", ["not_started", "in_progress"])
+    .maybeSingle();
+
+  if (existing) {
+    return {
+      content: [{
+        type: "text",
+        text: `本日（${todayStr}）のセッション「${(existing as Record<string, unknown>).title}」がすでに存在します。既存セッションを削除してから再登録してください。`,
+      }],
+      isError: true,
+    };
+  }
+
+  // Create session
+  const { data: sessionData, error: sessionError } = await supabase
+    .from("workout_sessions")
+    .insert({ user_id: userId, date: todayStr, title: parsed.title, status: "not_started" })
+    .select()
+    .single();
+
+  if (sessionError || !sessionData) {
+    return { content: [{ type: "text", text: "セッションの作成に失敗しました" }], isError: true };
+  }
+
+  const session = sessionData as Record<string, unknown>;
+
+  // Create session exercises
+  const exerciseRows = parsed.exercises.map((ex, i) => ({
+    user_id: userId,
+    session_id: session.id,
+    exercise_name: ex.name,
+    planned_sets: ex.sets,
+    planned_reps_min: ex.repsMin,
+    planned_reps_max: ex.repsMax,
+    rest_seconds: ex.restSeconds,
+    sort_order: i,
+    is_one_arm: ex.isOneArm,
+    is_duration: ex.isDuration,
+  }));
+
+  const { error: exError } = await supabase
+    .from("workout_session_exercises")
+    .insert(exerciseRows);
+
+  if (exError) {
+    await supabase.from("workout_sessions").delete().eq("id", session.id);
+    return { content: [{ type: "text", text: "種目の登録に失敗しました" }], isError: true };
+  }
+
+  const lines = [
+    `✅ 本日（${todayStr}）のセッション「${parsed.title}」を登録しました。`,
+    `種目数: ${parsed.exercises.length}件`,
+    "",
+  ];
+  for (const ex of parsed.exercises) {
+    const rep = ex.isDuration ? `${ex.repsMin}分` : `${ex.repsMin}-${ex.repsMax}回`;
+    const arm = ex.isOneArm ? "（片腕）" : "";
+    lines.push(`• ${ex.name}${arm}  ${ex.sets}セット × ${rep}  休憩${ex.restSeconds}秒`);
+  }
+  lines.push("", "アプリのホーム画面を更新すると反映されています。");
+
+  return { content: [{ type: "text", text: lines.join("\n") }] };
+}
 
 async function listRecentSessions(
   userId: string,
@@ -286,6 +450,8 @@ export async function callTool(
 ): Promise<McpToolResult> {
   const safeArgs = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
   switch (name) {
+    case "create_today_session":
+      return createTodaySession(userId, safeArgs);
     case "list_recent_sessions":
       return listRecentSessions(userId, safeArgs);
     case "get_session_detail":
