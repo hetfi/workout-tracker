@@ -1,28 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORY_COLORS, CATEGORY_LABELS, CATEGORY_ORDER, MuscleCategory } from "@/lib/muscleCategory";
-import { useEffect } from "react";
+import { fetchCalendarChunk } from "@/app/(app)/home/actions";
 
 interface WorkoutCalendarProps {
   initialYear: number;
   initialMonth: number;
-  /** 過去3ヶ月分のデータをまとめて受け取る（"YYYY-MM-DD" → categories） */
+  /** 初期ロード済みデータ（"YYYY-MM-DD" → categories） */
   initialData: Record<string, MuscleCategory[]>;
-  /** 休息日の日付リスト（"YYYY-MM-DD"） */
+  /** 初期ロード済みの休息日リスト */
   restDays?: string[];
-  /** 表示を許可する最古の年月 */
+  /** ナビゲーション可能な絶対下限（通常 24 ヶ月前） */
   oldestYear: number;
   oldestMonth: number;
+  /** 初期ロード済みデータの最古月（先読みトリガーの基準） */
+  loadedOldestYear: number;
+  loadedOldestMonth: number;
 }
 
 const DOW_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+const CHUNK_MONTHS = 3;
 
 function getTodayJST(): string {
   const now = new Date();
   const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return jst.toISOString().slice(0, 10);
+}
+
+function toMonthNum(y: number, m: number) {
+  return y * 12 + m;
 }
 
 export function WorkoutCalendar({
@@ -32,17 +40,65 @@ export function WorkoutCalendar({
   restDays = [],
   oldestYear,
   oldestMonth,
+  loadedOldestYear: loadedOldestYearProp,
+  loadedOldestMonth: loadedOldestMonthProp,
 }: WorkoutCalendarProps) {
-  const restDaySet = new Set(restDays);
   const router = useRouter();
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+  const [calData, setCalData] = useState<Record<string, MuscleCategory[]>>(initialData);
+  const [restDaySet, setRestDaySet] = useState(() => new Set(restDays));
+  const [loadedOldestYear, setLoadedOldestYear] = useState(loadedOldestYearProp);
+  const [loadedOldestMonth, setLoadedOldestMonth] = useState(loadedOldestMonthProp);
+  const [isFetching, setIsFetching] = useState(false);
+  const isFetchingRef = useRef(false);
 
   const todayStr = getTodayJST();
   const todayDate = new Date(todayStr + "T00:00:00+09:00");
   const currentYear = todayDate.getFullYear();
   const currentMonth = todayDate.getMonth() + 1;
+
+  // 表示月がロード済み境界に近づいたら次のチャンクを先読みする
+  useEffect(() => {
+    const currentNum = toMonthNum(year, month);
+    const loadedOldestNum = toMonthNum(loadedOldestYear, loadedOldestMonth);
+    const absoluteOldestNum = toMonthNum(oldestYear, oldestMonth);
+
+    // ロード済み最古の1ヶ月後以内に入ったらトリガー
+    if (currentNum > loadedOldestNum + 1) return;
+    // 絶対下限まで読み終えていたら終了
+    if (loadedOldestNum <= absoluteOldestNum) return;
+    // 既にフェッチ中なら重複しない
+    if (isFetchingRef.current) return;
+
+    isFetchingRef.current = true;
+    setIsFetching(true);
+
+    // ロード済み最古の 1 ヶ月前を終端として CHUNK_MONTHS ヶ月分取得
+    let prevToYear = loadedOldestYear;
+    let prevToMonth = loadedOldestMonth - 1;
+    if (prevToMonth === 0) { prevToYear--; prevToMonth = 12; }
+
+    fetchCalendarChunk(prevToYear, prevToMonth, CHUNK_MONTHS)
+      .then(({ calendarData: chunk, restDays: chunkRestDays }) => {
+        setCalData(prev => ({ ...chunk, ...prev }));
+        setRestDaySet(prev => {
+          const next = new Set(prev);
+          for (const d of chunkRestDays) next.add(d);
+          return next;
+        });
+        // JavaScript の Date は month に負値を渡しても正しく処理する
+        const newOldest = new Date(prevToYear, prevToMonth - CHUNK_MONTHS, 1);
+        setLoadedOldestYear(newOldest.getFullYear());
+        setLoadedOldestMonth(newOldest.getMonth() + 1);
+      })
+      .catch(() => {})
+      .finally(() => {
+        isFetchingRef.current = false;
+        setIsFetching(false);
+      });
+  }, [year, month, loadedOldestYear, loadedOldestMonth, oldestYear, oldestMonth]);
 
   const isNextMonthDisabled =
     year > currentYear || (year === currentYear && month >= currentMonth);
@@ -74,7 +130,6 @@ export function WorkoutCalendar({
   const formatDateStr = (day: number) =>
     `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-  // 過去日のセル背景色（カード #2C2C2E に 7% 白を重ねた値）
   const PAST_CELL_BG = "#3B3B3D";
   const FUTURE_CELL_BG = "rgba(255,255,255,0.03)";
 
@@ -95,9 +150,16 @@ export function WorkoutCalendar({
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <span className="text-base font-bold text-white tracking-wide">
-          {year}年{month}月
-        </span>
+
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-base font-bold text-white tracking-wide">
+            {year}年{month}月
+          </span>
+          {isFetching && (
+            <span className="text-xs" style={{ color: "#636366" }}>読み込み中…</span>
+          )}
+        </div>
+
         <button
           onClick={nextMonth}
           disabled={isNextMonthDisabled}
@@ -110,7 +172,7 @@ export function WorkoutCalendar({
         </button>
       </div>
 
-      {/* Day of week header — gap-x-1 でセルと列幅を合わせる */}
+      {/* Day of week header */}
       <div className="grid grid-cols-7 gap-x-1 mb-1.5">
         {DOW_LABELS.map((d) => (
           <div
@@ -131,7 +193,7 @@ export function WorkoutCalendar({
           }
 
           const dateStr = formatDateStr(day);
-          const categories = initialData[dateStr] ?? [];
+          const categories = calData[dateStr] ?? [];
           const isToday = dateStr === todayStr;
           const isFuture = dateStr > todayStr;
           const isRestDay = !isFuture && restDaySet.has(dateStr);
@@ -149,7 +211,6 @@ export function WorkoutCalendar({
           const isNavigating = navigatingTo === dateStr || (isToday && navigatingTo === "today");
           const cellBg = isToday ? "#CAFF4D" : isFuture ? FUTURE_CELL_BG : PAST_CELL_BG;
           const textColor = isToday ? "#0D0D0F" : isFuture ? "#555558" : "#FFFFFF";
-          // ドットのセパレータ色 = セル背景色に合わせる
           const dotShadowColor = isToday ? "#CAFF4D" : isFuture ? "#2C2C2E" : PAST_CELL_BG;
 
           return (
@@ -164,7 +225,6 @@ export function WorkoutCalendar({
                 transition: "opacity 0.15s",
               }}
             >
-              {/* Day number */}
               <span
                 className="text-sm leading-none"
                 style={{ color: textColor, fontWeight: isToday ? 700 : 600 }}
@@ -172,7 +232,6 @@ export function WorkoutCalendar({
                 {day}
               </span>
 
-              {/* Category dots or rest day dash */}
               <div className="flex items-center justify-center h-1.5">
                 {isRestDay ? (
                   <span

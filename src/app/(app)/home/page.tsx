@@ -503,8 +503,10 @@ export default async function HomePage() {
           initialMonth={jstMonth}
           initialData={calendarData}
           restDays={restDaysList}
-          oldestYear={new Date(jstYear, jstMonth - 3, 1).getFullYear()}
-          oldestMonth={new Date(jstYear, jstMonth - 3, 1).getMonth() + 1}
+          oldestYear={new Date(jstYear, jstMonth - 24, 1).getFullYear()}
+          oldestMonth={new Date(jstYear, jstMonth - 24, 1).getMonth() + 1}
+          loadedOldestYear={new Date(jstYear, jstMonth - 3, 1).getFullYear()}
+          loadedOldestMonth={new Date(jstYear, jstMonth - 3, 1).getMonth() + 1}
         />
       </div>
     </div>

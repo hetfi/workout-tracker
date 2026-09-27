@@ -174,3 +174,35 @@ export async function getCalendarData(
 ): Promise<Record<string, MuscleCategory[]>> {
   return getCalendarDataRange(year, month, 1);
 }
+
+/**
+ * カレンダー先読み用チャンク取得（カレンダーデータ + 休息日を1回で返す）
+ * toMonth を終端として monthCount ヶ月分のデータを取得する。
+ */
+export async function fetchCalendarChunk(
+  toYear: number,
+  toMonth: number,
+  monthCount: number
+): Promise<{ calendarData: Record<string, MuscleCategory[]>; restDays: string[] }> {
+  const fromDate = new Date(toYear, toMonth - monthCount, 1);
+  const startDate = `${fromDate.getFullYear()}-${String(fromDate.getMonth() + 1).padStart(2, "0")}-01`;
+  const lastDay = new Date(toYear, toMonth, 0).getDate();
+  const endDate = `${toYear}-${String(toMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { calendarData: {}, restDays: [] };
+
+  const [calendarData, restDaysData] = await Promise.all([
+    getCalendarDataRange(toYear, toMonth, monthCount),
+    supabase
+      .from("rest_days")
+      .select("date")
+      .eq("user_id", user.id)
+      .gte("date", startDate)
+      .lte("date", endDate)
+      .then(({ data }) => (data ?? []).map((r) => r.date as string)),
+  ]);
+
+  return { calendarData, restDays: restDaysData };
+}
