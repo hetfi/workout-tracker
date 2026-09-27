@@ -46,7 +46,11 @@ export const TOOLS: McpTool[] = [
       properties: {
         limit: {
           type: "number",
-          description: "取得件数（デフォルト5、最大20）",
+          description: "取得件数（デフォルト10、最大100）",
+        },
+        months: {
+          type: "number",
+          description: "過去N か月分を取得（1〜12。指定すると件数上限より優先して日付でフィルタ）",
         },
       },
     },
@@ -77,9 +81,9 @@ export const TOOLS: McpTool[] = [
           type: "string",
           description: "種目名（例: ベンチプレス）",
         },
-        limit: {
+        months: {
           type: "number",
-          description: "取得セッション数（デフォルト5、最大20）",
+          description: "過去N か月分を取得（デフォルト3、最大12）",
         },
       },
       required: ["exercise_name"],
@@ -327,10 +331,12 @@ async function listRecentSessions(
   userId: string,
   args: Record<string, unknown>
 ): Promise<McpToolResult> {
-  const limit = Math.min(Number(args.limit ?? 5), 20);
+  const limit = Math.min(Number(args.limit ?? 10), 100);
+  const months = args.months != null ? Math.min(Math.max(Number(args.months), 1), 12) : null;
+
   const supabase = createServiceRoleClient();
 
-  const { data: sessions, error } = await supabase
+  let query = supabase
     .from("workout_sessions")
     .select("id, date, title, status, started_at, completed_at")
     .eq("user_id", userId)
@@ -338,9 +344,18 @@ async function listRecentSessions(
     .order("date", { ascending: false })
     .limit(limit);
 
+  if (months != null) {
+    const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    jst.setMonth(jst.getMonth() - months);
+    query = query.gte("date", jst.toISOString().slice(0, 10));
+  }
+
+  const { data: sessions, error } = await query;
+
   if (error) return { content: [{ type: "text", text: "データ取得に失敗しました" }], isError: true };
   if (!sessions || sessions.length === 0) {
-    return { content: [{ type: "text", text: "完了済みのセッションがまだありません" }] };
+    const rangeNote = months != null ? `（過去${months}か月）` : "";
+    return { content: [{ type: "text", text: `完了済みのセッションがまだありません${rangeNote}` }] };
   }
 
   const sessionIds = sessions.map((s) => s.id);
@@ -355,7 +370,8 @@ async function listRecentSessions(
     setCountBySession[s.session_id] = (setCountBySession[s.session_id] ?? 0) + 1;
   }
 
-  const lines = [`直近${sessions.length}件のトレーニング記録:\n`];
+  const rangeLabel = months != null ? `過去${months}か月の` : "直近";
+  const lines = [`${rangeLabel}${sessions.length}件のトレーニング記録:\n`];
   sessions.forEach((s, i) => {
     const dur = formatDuration(s.started_at, s.completed_at);
     const cnt = setCountBySession[s.id] ?? 0;
@@ -450,21 +466,29 @@ async function getExerciseHistory(
   if (!exerciseName) {
     return { content: [{ type: "text", text: "exercise_nameを指定してください" }], isError: true };
   }
-  const limit = Math.min(Number(args.limit ?? 5), 20);
+  const months = Math.min(Math.max(Number(args.months ?? 3), 1), 12);
 
   const supabase = createServiceRoleClient();
 
-  // Step 1: Get completed session IDs (latest first)
-  const { data: sessionRows } = await supabase
+  // Calculate date range in JST
+  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const sinceDate = new Date(jst);
+  sinceDate.setMonth(sinceDate.getMonth() - months);
+  const sinceDateStr = sinceDate.toISOString().slice(0, 10);
+
+  // Step 1: Get completed sessions within the date range (limit 150 to avoid URL query length issues)
+  const { data: sessionRows, error: sessErr } = await supabase
     .from("workout_sessions")
     .select("id, date")
     .eq("user_id", userId)
     .eq("status", "completed")
+    .gte("date", sinceDateStr)
     .order("date", { ascending: false })
-    .limit(100);
+    .limit(150);
 
+  if (sessErr) return { content: [{ type: "text", text: "データ取得に失敗しました" }], isError: true };
   if (!sessionRows || sessionRows.length === 0) {
-    return { content: [{ type: "text", text: `「${exerciseName}」の記録はまだありません` }] };
+    return { content: [{ type: "text", text: `「${exerciseName}」の記録はまだありません（過去${months}か月）` }] };
   }
 
   const sessionIdToDate: Record<string, string> = {};
@@ -472,7 +496,7 @@ async function getExerciseHistory(
   const sessionIds = Object.keys(sessionIdToDate);
 
   // Step 2: Get session exercises matching the name
-  const { data: exercises } = await supabase
+  const { data: exercises, error: exErr } = await supabase
     .from("workout_session_exercises")
     .select("id, session_id, is_duration")
     .eq("user_id", userId)
@@ -480,23 +504,25 @@ async function getExerciseHistory(
     .ilike("exercise_name", exerciseName)
     .eq("skipped", false);
 
+  if (exErr) return { content: [{ type: "text", text: "データ取得に失敗しました" }], isError: true };
   if (!exercises || exercises.length === 0) {
-    return { content: [{ type: "text", text: `「${exerciseName}」の記録はまだありません` }] };
+    return { content: [{ type: "text", text: `「${exerciseName}」の記録はまだありません（過去${months}か月）` }] };
   }
 
-  // Sort by session date descending, take limit
+  // Sort by session date descending
   const sorted = exercises
     .map((e) => ({ ...e, date: sessionIdToDate[e.session_id] ?? "" }))
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, limit);
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   const exIds = sorted.map((e) => e.id);
-  const { data: sets } = await supabase
+  const { data: sets, error: setsErr } = await supabase
     .from("workout_sets")
     .select("session_exercise_id, set_number, weight, reps, side")
     .in("session_exercise_id", exIds)
     .eq("status", "completed")
     .order("set_number");
+
+  if (setsErr) return { content: [{ type: "text", text: "データ取得に失敗しました" }], isError: true };
 
   const setsByEx: Record<string, typeof sets> = {};
   for (const s of sets ?? []) {
@@ -504,7 +530,7 @@ async function getExerciseHistory(
     setsByEx[s.session_exercise_id]!.push(s);
   }
 
-  const lines = [`「${exerciseName}」の直近${sorted.length}セッション:\n`];
+  const lines = [`「${exerciseName}」の過去${months}か月（${sorted.length}セッション）:\n`];
   for (const ex of sorted) {
     const exSets = setsByEx[ex.id] ?? [];
     if (exSets.length === 0) continue;
