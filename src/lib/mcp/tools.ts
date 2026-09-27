@@ -151,8 +151,9 @@ async function getSessionDetail(
       .order("sort_order"),
     supabase
       .from("workout_sets")
-      .select("session_exercise_id, set_number, weight, reps, status, side, is_duration")
+      .select("session_exercise_id, set_number, weight, reps, status, side")
       .eq("session_id", sessionId)
+      .eq("user_id", userId)
       .eq("status", "completed")
       .order("set_number"),
   ]);
