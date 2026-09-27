@@ -94,8 +94,12 @@ export async function POST(request: Request): Promise<Response> {
         const result = await callTool(toolName, toolArgs, userId);
         return jsonRpc(id, result);
       } catch (err) {
-        console.error("[MCP] tool error:", err instanceof Error ? err.message : "unknown");
-        return jsonRpcError(id, MCP_ERROR.INTERNAL_ERROR.code, "Tool execution failed");
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[MCP] tool error:", msg);
+        return jsonRpc(id, {
+          content: [{ type: "text", text: `[DEBUG] ツール実行エラー: ${msg}` }],
+          isError: true,
+        });
       }
     }
 
