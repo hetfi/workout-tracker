@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/Input";
 
@@ -33,6 +33,8 @@ function DumbbellIcon() {
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextUrl = searchParams.get("next") ?? "/home";
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -66,7 +68,7 @@ export default function LoginPage() {
         setMessage("アカウントを作成しました。そのままログインできます。");
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (!signInError) {
-          router.push("/home");
+          router.push(nextUrl);
           router.refresh();
         }
       }
@@ -80,7 +82,7 @@ export default function LoginPage() {
           setError(authError.message);
         }
       } else {
-        router.push("/home");
+        router.push(nextUrl);
         router.refresh();
       }
     }
