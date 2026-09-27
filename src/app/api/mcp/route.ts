@@ -96,10 +96,7 @@ export async function POST(request: Request): Promise<Response> {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error("[MCP] tool error:", msg);
-        return jsonRpc(id, {
-          content: [{ type: "text", text: `[DEBUG] ツール実行エラー: ${msg}` }],
-          isError: true,
-        });
+        return jsonRpcError(id, MCP_ERROR.INTERNAL_ERROR.code, "Tool execution failed");
       }
     }
 
