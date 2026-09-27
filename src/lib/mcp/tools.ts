@@ -153,7 +153,6 @@ async function getSessionDetail(
       .from("workout_sets")
       .select("session_exercise_id, set_number, weight, reps, status, side, is_duration")
       .eq("session_id", sessionId)
-      .eq("user_id", userId)
       .eq("status", "completed")
       .order("set_number"),
   ]);
@@ -247,7 +246,6 @@ async function getExerciseHistory(
   const { data: sets } = await supabase
     .from("workout_sets")
     .select("session_exercise_id, set_number, weight, reps, side")
-    .eq("user_id", userId)
     .in("session_exercise_id", exIds)
     .eq("status", "completed")
     .order("set_number");
