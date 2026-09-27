@@ -34,6 +34,7 @@ export interface ExportExercise {
     | "restSeconds"
     | "skipped"
     | "notes"
+    | "isDuration"
   > & { weightType?: string };
   sets: Pick<
     WorkoutSet,
@@ -105,9 +106,11 @@ export function generateChatGPTText(data: ExportSession): string {
     for (const s of sets.sort((a, b) => a.setNumber - b.setNumber)) {
       const sideLabel = s.side ? ` (${s.side})` : "";
       if (s.status === "completed") {
-        lines.push(
-          `${s.setNumber}セット目${sideLabel}：${formatWeight(s.weight, exercise.weightType)} × ${s.reps}回`
-        );
+        const valueStr =
+          exercise.isDuration && s.weight === 0 && s.reps > 0
+            ? `${s.reps}分`
+            : `${formatWeight(s.weight, exercise.weightType)} × ${s.reps}回`;
+        lines.push(`${s.setNumber}セット目${sideLabel}：${valueStr}`);
       } else if (s.status === "skipped") {
         lines.push(`${s.setNumber}セット目${sideLabel}：実施せず`);
       }

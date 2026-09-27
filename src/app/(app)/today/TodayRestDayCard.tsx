@@ -23,7 +23,7 @@ export function TodayRestDayCard({ date }: TodayRestDayCardProps) {
 
   return (
     <div
-      className="rounded-xl p-4 space-y-3"
+      className="rounded-xl px-4 pt-4 pb-3 space-y-3"
       style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
     >
       <p className="font-medium text-white">休息中に筋肉は育っています！</p>

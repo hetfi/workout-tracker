@@ -45,7 +45,7 @@ export function TodayNoSessionCard({ date, initialIsRest, backTo = "/today" }: T
 
   return (
     <div
-      className="rounded-xl p-4 space-y-3"
+      className="rounded-xl px-4 pt-4 pb-3 space-y-3"
       style={{ backgroundColor: "#2C2C2E", border: "1px solid rgba(255,255,255,0.08)" }}
     >
       {isRest ? (

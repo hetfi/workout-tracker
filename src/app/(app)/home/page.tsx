@@ -246,7 +246,15 @@ function AchievementList({ exercises }: { exercises: AchievementExercise[] }) {
     if (!byCategory[ex.category]) byCategory[ex.category] = [];
     byCategory[ex.category].push(ex);
   }
-  const cats = CATEGORY_ORDER.filter((c) => byCategory[c]?.length > 0);
+  // exercises の sort_order 順にカテゴリを並べる
+  const _seenCats = new Set<string>();
+  const cats: MuscleCategory[] = [];
+  for (const ex of exercises) {
+    if (!_seenCats.has(ex.category)) {
+      _seenCats.add(ex.category);
+      cats.push(ex.category);
+    }
+  }
 
   return (
     <div className="space-y-3 mt-3">
@@ -344,6 +352,41 @@ export default async function HomePage() {
 
   const streak = calcStreak(streakSessions);
 
+  // コピーテキスト（完了・進行中どちらでも使う）
+  const achievementByCategory: Record<string, AchievementExercise[]> = {};
+  for (const ex of achievement) {
+    if (!achievementByCategory[ex.category]) achievementByCategory[ex.category] = [];
+    achievementByCategory[ex.category].push(ex);
+  }
+  // achievement の sort_order 順にカテゴリを並べる
+  const _seenAchievementCats = new Set<string>();
+  const achievementCats: MuscleCategory[] = [];
+  for (const ex of achievement) {
+    if (!_seenAchievementCats.has(ex.category)) {
+      _seenAchievementCats.add(ex.category);
+      achievementCats.push(ex.category);
+    }
+  }
+  const copyText = [
+    `📋 トレーニング記録｜${formatJapaneseDate(todayStr)}`,
+    achievementTitle,
+    "",
+    // カテゴリグループ化をせず、メニューの sort_order 順に種目を並べる
+    ...achievement.flatMap((ex) => [
+      `・${ex.name}: ${ex.completedSets}セット${
+        ex.totalVolume > 0 ? ` / ${ex.totalVolume.toLocaleString()}kg` : ""
+      }`,
+      ...ex.sets.map((s) => {
+        const sideLabel = s.side ? `(${s.side}) ` : "";
+        const valueStr =
+          ex.isDuration && s.weight === 0 && s.reps > 0
+            ? `${s.reps}分`
+            : `${s.weight}kg × ${s.reps}回`;
+        return `  ${s.setNumber}${sideLabel}: ${valueStr}`;
+      }),
+    ]),
+  ].join("\n");
+
   // 種目0件のアクティブセッションを破棄（今日のメニューと同様）
   if (showAddUI && hasAnySessions && activeSessionIds.length > 0) {
     await supabase
@@ -376,32 +419,6 @@ export default async function HomePage() {
       ) : allComplete ? (
         /* 全完了 → お疲れ様 + 今日の実績 */
         (() => {
-          const achievementByCategory: Record<string, AchievementExercise[]> = {};
-          for (const ex of achievement) {
-            if (!achievementByCategory[ex.category]) achievementByCategory[ex.category] = [];
-            achievementByCategory[ex.category].push(ex);
-          }
-          const achievementCats = CATEGORY_ORDER.filter((c) => achievementByCategory[c]?.length > 0);
-          const copyText = [
-            `📋 トレーニング記録｜${formatJapaneseDate(todayStr)}`,
-            achievementTitle,
-            "",
-            ...achievementCats.flatMap((cat) => [
-              `【${CATEGORY_LABELS[cat]}】`,
-              ...achievementByCategory[cat].flatMap((ex) => [
-                `・${ex.name}: ${ex.completedSets}セット${
-                  ex.totalVolume > 0 ? ` / ${ex.totalVolume.toLocaleString()}kg` : ""
-                }`,
-                ...ex.sets.map((s) => {
-                  const sideLabel = s.side ? `(${s.side}) ` : "";
-                  const valueStr = ex.isDuration && s.weight === 0 && s.reps > 0
-                    ? `${s.reps}分`
-                    : `${s.weight}kg × ${s.reps}回`;
-                  return `  ${s.setNumber}${sideLabel}: ${valueStr}`;
-                }),
-              ]),
-            ]),
-          ].join("\n");
           return (
             <div className="space-y-3">
               <div className="rounded-xl bg-[#2C2C2E] border border-[#CAFF4D]/20 p-4">
@@ -420,12 +437,18 @@ export default async function HomePage() {
                 </div>
                 <AchievementList exercises={achievement} />
                 {achievement.length > 0 && (
-                  <div className="mt-3">
+                  <div className="mt-3 flex items-center gap-2">
                     <CopyButton
                       text={copyText}
                       label="実績をChatGPTにコピー"
-                      className="w-full py-2.5 rounded-xl text-xs font-medium transition-colors"
+                      className="flex-1 py-2.5 rounded-xl text-xs font-medium transition-colors"
                     />
+                    <Link
+                      href="/today"
+                      className="shrink-0 text-xs text-[#CAFF4D] font-medium"
+                    >
+                      詳細 →
+                    </Link>
                   </div>
                 )}
               </div>
@@ -452,6 +475,19 @@ export default async function HomePage() {
             <div className="rounded-xl bg-[#2C2C2E] border border-white/[0.08] p-4">
               <p className="text-sm font-medium text-[#8E8E93] mb-0.5">今日の実績</p>
               <AchievementList exercises={achievement} />
+              <div className="mt-3 flex items-center gap-2">
+                <CopyButton
+                  text={copyText}
+                  label="実績をChatGPTにコピー"
+                  className="flex-1 py-2.5 rounded-xl text-xs font-medium transition-colors"
+                />
+                <Link
+                  href="/today"
+                  className="shrink-0 text-xs text-[#CAFF4D] font-medium"
+                >
+                  詳細 →
+                </Link>
+              </div>
             </div>
           )}
         </div>

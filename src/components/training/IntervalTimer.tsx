@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { cn } from "@/lib/cn";
 import {
   getTimerSnapshot,
   adjustTimer,
@@ -101,21 +100,11 @@ export function IntervalTimer({
 
   if (isFinished) return null;
 
-  const { remainingSeconds, isUrgent, isCritical } = snapshot;
+  const { remainingSeconds } = snapshot;
 
   return (
     <div
-      className={cn(
-        "fixed top-safe-top left-0 right-0 z-40",
-        "flex items-center justify-between",
-        "px-4 py-2",
-        "transition-colors duration-500",
-        isCritical
-          ? "bg-red-600 text-white"
-          : isUrgent
-          ? "bg-orange-500 text-white"
-          : "bg-blue-600 text-white"
-      )}
+      className="fixed top-safe-top left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-blue-600 text-white"
       role="timer"
       aria-label={`インターバルタイマー: ${formatTimerDisplay(remainingSeconds)}`}
     >
@@ -129,10 +118,7 @@ export function IntervalTimer({
 
       {/* Center: big time display */}
       <div
-        className={cn(
-          "tabular-nums font-bold mx-4 transition-all duration-300",
-          isCritical ? "text-5xl scale-110" : isUrgent ? "text-4xl" : "text-3xl"
-        )}
+        className="tabular-nums font-bold mx-4 text-3xl"
         aria-live="off"
       >
         {formatTimerDisplay(remainingSeconds)}

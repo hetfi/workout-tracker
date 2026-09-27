@@ -5,8 +5,10 @@ import type { WorkoutSet } from "@/domain/types";
 
 interface SetRowProps {
   set: WorkoutSet;
-  /** Called when row is tapped */
+  /** Called when main row area is tapped (opens picker) */
   onTap: () => void;
+  /** Called when status badge is tapped (quick complete/uncomplete without picker) */
+  onQuickComplete?: () => void;
   /** Called when delete button is tapped */
   onDelete?: () => void;
   /** When true, display reps as minutes instead of weight×reps */
@@ -15,82 +17,94 @@ interface SetRowProps {
   displaySetNumber?: number;
 }
 
-export function SetRow({ set, onTap, onDelete, isDuration = false, displaySetNumber }: SetRowProps) {
+export function SetRow({ set, onTap, onQuickComplete, onDelete, isDuration = false, displaySetNumber }: SetRowProps) {
   const isCompleted = set.status === "completed";
   const isSkipped = set.status === "skipped";
   const displayNum = displaySetNumber ?? set.setNumber;
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={onTap}
+      {/* Row container (holds background/border styling) */}
+      <div
         className={cn(
-          "flex items-center flex-1",
-          "rounded-xl px-4 py-3 gap-3",
+          "flex items-center flex-1 rounded-xl overflow-hidden",
           "transition-all duration-200",
-          "touch-manipulation select-none",
-          "text-left",
           isCompleted
             ? "bg-[#CAFF4D]/10 border border-[#CAFF4D]/30"
             : isSkipped
             ? "bg-white/[0.04] border border-white/[0.08] opacity-50"
-            : "bg-white/[0.06] border border-white/[0.08] active:bg-white/[0.1]"
+            : "bg-white/[0.06] border border-white/[0.08]"
         )}
-        aria-label={
-          isDuration
-            ? `${displayNum}セット目: ${set.reps}分 ${isCompleted ? "完了" : "未完了"}`
-            : `${displayNum}セット目: 重量${set.weight}kg 回数${set.reps}回 ${isCompleted ? "完了" : "未完了"}`
-        }
       >
-        {/* Set number */}
-        <span
+        {/* Main tappable area: opens weight/reps picker */}
+        <button
+          onClick={onTap}
           className={cn(
-            "text-sm font-medium w-6 text-center shrink-0",
-            isCompleted ? "text-[#CAFF4D]" : "text-[#8E8E93]"
+            "flex items-center flex-1 gap-3",
+            "pl-4 py-3",
+            "touch-manipulation select-none text-left cursor-pointer",
+            !isCompleted && !isSkipped && "hover:bg-white/[0.06] active:bg-white/[0.1]"
           )}
+          aria-label={
+            isDuration
+              ? `${displayNum}セット目: ${set.reps}分 - タップして編集`
+              : `${displayNum}セット目: 重量${set.weight}kg 回数${set.reps}回 - タップして編集`
+          }
         >
-          {displayNum}
-        </span>
+          {/* Set number */}
+          <span
+            className={cn(
+              "text-sm font-medium w-6 text-center shrink-0",
+              isCompleted ? "text-[#CAFF4D]" : "text-[#8E8E93]"
+            )}
+          >
+            {displayNum}
+          </span>
 
-        {/* Values */}
-        <div className="flex-1 flex items-baseline gap-2 whitespace-nowrap overflow-hidden">
-          {isDuration ? (
-            <span
-              className={cn(
-                "text-xl font-bold tabular-nums",
-                isCompleted ? "text-[#CAFF4D]" : "text-white"
-              )}
-            >
-              {set.reps > 0 ? set.reps : "—"}
-              <span className="text-sm font-normal ml-0.5">分</span>
-            </span>
-          ) : (
-            <>
+          {/* Values */}
+          <div className="flex-1 flex items-baseline gap-2 whitespace-nowrap overflow-hidden">
+            {isDuration ? (
               <span
                 className={cn(
                   "text-xl font-bold tabular-nums",
                   isCompleted ? "text-[#CAFF4D]" : "text-white"
                 )}
               >
-                {set.weight}
-                <span className="text-sm font-normal ml-0.5">kg</span>
+                {set.reps > 0 ? set.reps : "—"}
+                <span className="text-sm font-normal ml-0.5">分</span>
               </span>
-              <span className="text-[#8E8E93]">×</span>
-              <span
-                className={cn(
-                  "text-xl font-bold tabular-nums",
-                  isCompleted ? "text-[#CAFF4D]" : "text-white"
-                )}
-              >
-                {set.reps}
-                <span className="text-sm font-normal ml-0.5">回</span>
-              </span>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <span
+                  className={cn(
+                    "text-xl font-bold tabular-nums",
+                    isCompleted ? "text-[#CAFF4D]" : "text-white"
+                  )}
+                >
+                  {set.weight}
+                  <span className="text-sm font-normal ml-0.5">kg</span>
+                </span>
+                <span className="text-[#8E8E93]">×</span>
+                <span
+                  className={cn(
+                    "text-xl font-bold tabular-nums",
+                    isCompleted ? "text-[#CAFF4D]" : "text-white"
+                  )}
+                >
+                  {set.reps}
+                  <span className="text-sm font-normal ml-0.5">回</span>
+                </span>
+              </>
+            )}
+          </div>
+        </button>
 
-        {/* Status badge */}
-        <div className="shrink-0">
+        {/* Status badge: tap to quick complete/uncomplete */}
+        <button
+          onClick={onQuickComplete ?? onTap}
+          className="shrink-0 pr-4 pl-2 py-3 touch-manipulation cursor-pointer hover:bg-white/[0.06] active:opacity-60 transition-all"
+          aria-label={isCompleted ? "完了を解除する" : "完了にする"}
+        >
           {isCompleted ? (
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#CAFF4D] text-black text-sm font-bold">
               ✓
@@ -102,8 +116,8 @@ export function SetRow({ set, onTap, onDelete, isDuration = false, displaySetNum
               →
             </span>
           )}
-        </div>
-      </button>
+        </button>
+      </div>
 
       {/* Delete button */}
       {onDelete && (

@@ -37,8 +37,8 @@ export async function startTrainingFromPlan(planId: string) {
       .select()
       .single(),
     exerciseNames.length > 0
-      ? supabase.from("exercises").select("name, is_one_arm").eq("user_id", user.id).in("name", exerciseNames)
-      : Promise.resolve({ data: [] as { name: string; is_one_arm: boolean }[] }),
+      ? supabase.from("exercises").select("name, is_one_arm, is_duration").eq("user_id", user.id).in("name", exerciseNames)
+      : Promise.resolve({ data: [] as { name: string; is_one_arm: boolean; is_duration: boolean }[] }),
   ]);
   if (sessionError || !session) throw new Error("Failed to create session");
 
@@ -46,8 +46,10 @@ export async function startTrainingFromPlan(planId: string) {
   if (planExercises && planExercises.length > 0) {
 
     const oneArmMap: Record<string, boolean> = {};
+    const durationMap: Record<string, boolean> = {};
     for (const ex of exerciseMaster ?? []) {
       oneArmMap[ex.name] = Boolean(ex.is_one_arm);
+      durationMap[ex.name] = Boolean(ex.is_duration);
     }
 
     const sessionExercises = planExercises.map((pe) => ({
@@ -61,6 +63,7 @@ export async function startTrainingFromPlan(planId: string) {
       rest_seconds: pe.rest_seconds,
       sort_order: pe.sort_order,
       is_one_arm: oneArmMap[pe.exercise_name] ?? false,
+      is_duration: durationMap[pe.exercise_name] ?? false,
     }));
 
     await supabase.from("workout_session_exercises").insert(sessionExercises);

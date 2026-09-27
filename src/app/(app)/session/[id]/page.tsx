@@ -75,8 +75,7 @@ function buildSessionCopyText(
   title: string,
   date: string,
   exercises: WorkoutSessionExercise[],
-  setsMap: Record<string, WorkoutSet[]>,
-  categoriesMap: Record<string, MuscleCategory>
+  setsMap: Record<string, WorkoutSet[]>
 ): string {
   const lines: string[] = [
     `📋 トレーニング記録｜${formatJpDate(date)}`,
@@ -84,31 +83,19 @@ function buildSessionCopyText(
     "",
   ];
 
-  // Group by category
-  const byCategory: Record<string, { ex: WorkoutSessionExercise; completedSets: WorkoutSet[] }[]> = {};
+  // カテゴリグループ化をせず、exercises の sort_order 順に種目を並べる
   for (const ex of exercises) {
     const completed = (setsMap[ex.id] ?? []).filter((s) => s.status === "completed");
     if (completed.length === 0) continue;
-    const cat = categoriesMap[ex.id] ?? "other";
-    if (!byCategory[cat]) byCategory[cat] = [];
-    byCategory[cat].push({ ex, completedSets: completed });
-  }
-
-  const orderedCats = CATEGORY_ORDER.filter((c) => byCategory[c]?.length > 0);
-  for (const cat of orderedCats) {
-    lines.push(`【${CATEGORY_LABELS[cat]}】`);
-    for (const { ex, completedSets } of byCategory[cat]) {
-      const vol = Math.round(completedSets.reduce((acc, s) => acc + s.weight * s.reps, 0));
-      lines.push(`・${ex.exerciseName}: ${completedSets.length}セット${vol > 0 ? ` / ${vol.toLocaleString()}kg` : ""}`);
-      for (const s of completedSets) {
-        const side = s.side ? `(${s.side}) ` : "";
-        const valueStr = ex.isDuration && s.weight === 0 && s.reps > 0
-          ? `${s.reps}分`
-          : `${s.weight}kg × ${s.reps}回`;
-        lines.push(`  ${s.setNumber}${side}: ${valueStr}`);
-      }
+    const vol = Math.round(completed.reduce((acc, s) => acc + s.weight * s.reps, 0));
+    lines.push(`・${ex.exerciseName}: ${completed.length}セット${vol > 0 ? ` / ${vol.toLocaleString()}kg` : ""}`);
+    for (const s of completed) {
+      const side = s.side ? `(${s.side}) ` : "";
+      const valueStr = ex.isDuration && s.weight === 0 && s.reps > 0
+        ? `${s.reps}分`
+        : `${s.weight}kg × ${s.reps}回`;
+      lines.push(`  ${s.setNumber}${side}: ${valueStr}`);
     }
-    lines.push("");
   }
 
   return lines.join("\n").trimEnd();
@@ -275,7 +262,7 @@ export default function SessionPage({
                   ...draftSet,
                   side: draftSet.side ?? null,
                 };
-              } else if (draftSet.side) {
+              } else {
                 grouped[exId].push({
                   id: crypto.randomUUID(),
                   userId: "",
@@ -288,7 +275,7 @@ export default function SessionPage({
                   completedAt: draftSet.completedAt,
                   notes: draftSet.notes,
                   clientId: draftSet.clientId,
-                  side: draftSet.side,
+                  side: draftSet.side ?? null,
                   createdAt: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
                 });
@@ -300,16 +287,12 @@ export default function SessionPage({
 
         // タイマーを復元（過去日セッションはタイマー不要なのでスキップ）
         if (!isPastSessionLoaded) {
-          const timerToUse =
-            dbTimer ?? localTimer
-              ? fromRestTimer(dbTimer!) ?? localTimer
-              : null;
+          const timerToUse: TimerState | null = dbTimer
+            ? fromRestTimer(dbTimer) ?? localTimer ?? null
+            : localTimer ?? null;
           if (timerToUse) {
-            const state = dbTimer
-              ? fromRestTimer(dbTimer)
-              : (timerToUse as TimerState);
-            setTimerState(state);
-            const timerEx = exData.find((e) => e.id === state?.sessionExerciseId);
+            setTimerState(timerToUse);
+            const timerEx = exData.find((e) => e.id === timerToUse.sessionExerciseId);
             if (timerEx) setActiveExerciseName(timerEx.exerciseName);
           }
         }
@@ -418,7 +401,7 @@ export default function SessionPage({
         );
 
         const isToday = session?.date === getTodayJST();
-        if (isToday && pendingSets.length > 0 && session?.status === "in_progress" && getIntervalEnabled()) {
+        if (completedSet.status === "completed" && isToday && pendingSets.length > 0 && session?.status === "in_progress" && getIntervalEnabled()) {
           const nextSet = pendingSets[0];
           const state = createTimerState({
             sessionId,
@@ -430,6 +413,8 @@ export default function SessionPage({
 
           setTimerState(state);
           setActiveExerciseName(ex.exerciseName);
+          setContextTimerState(state);
+          setContextExerciseName(ex.exerciseName);
 
           // Persist timer
           try {
@@ -455,7 +440,7 @@ export default function SessionPage({
         showToast("セットの保存に失敗しました", "error");
       }
     },
-    [exercises, setsMap, session, sessionId, saveDraft, showToast]
+    [exercises, setsMap, session, sessionId, saveDraft, showToast, setContextTimerState, setContextExerciseName]
   );
 
   // ---- Handle sets update (apply to remaining, etc.) ----
@@ -525,51 +510,56 @@ export default function SessionPage({
   // ---- Handle delete set ----
   const handleDeleteSet = useCallback(
     async (exerciseId: string, clientId: string) => {
+      // Optimistic: remove from local state immediately so the UI index
+      // never goes out-of-bounds before the async DB call returns.
+      setSetsMap((prev) => {
+        const updated = { ...prev };
+        updated[exerciseId] = (prev[exerciseId] ?? []).filter(
+          (s) => s.clientId !== clientId
+        );
+        saveDraft(updated);
+        return updated;
+      });
       try {
         await deleteWorkoutSet(clientId);
-        setSetsMap((prev) => {
-          const updated = { ...prev };
-          updated[exerciseId] = (prev[exerciseId] ?? []).filter(
-            (s) => s.clientId !== clientId
-          );
-          return updated;
-        });
       } catch {
         showToast("セットの削除に失敗しました", "error");
       }
     },
-    [showToast]
+    [showToast, saveDraft]
   );
 
   // ---- Handle add set ----
   const handleAddSet = useCallback(
     async (exerciseId: string) => {
-      const existingSets = setsMap[exerciseId] ?? [];
-      const maxSetNumber = existingSets.reduce(
-        (max, s) => Math.max(max, s.setNumber),
-        0
-      );
-      const lastSet = existingSets[existingSets.length - 1];
+      // UUID は updater の外で生成（安定した値）。setNumber は updater の中で
+      // prev から計算することで、高速連打による重複 setNumber を防ぐ。
       const newClientId = crypto.randomUUID();
-      const newSet: WorkoutSet = {
-        id: newClientId,
-        userId: lastSet?.userId ?? "",
-        sessionExerciseId: exerciseId,
-        sessionId,
-        setNumber: maxSetNumber + 1,
-        weight: lastSet?.weight ?? 0,
-        reps: lastSet?.reps ?? 0,
-        status: "pending",
-        completedAt: null,
-        notes: null,
-        clientId: newClientId,
-        side: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
 
       setSetsMap((prev) => {
-        const updated = { ...prev, [exerciseId]: [...(prev[exerciseId] ?? []), newSet] };
+        const existingSets = prev[exerciseId] ?? [];
+        const maxSetNumber = existingSets.reduce(
+          (max, s) => Math.max(max, s.setNumber),
+          0
+        );
+        const lastSet = existingSets[existingSets.length - 1];
+        const newSet: WorkoutSet = {
+          id: newClientId,
+          userId: lastSet?.userId ?? "",
+          sessionExerciseId: exerciseId,
+          sessionId,
+          setNumber: maxSetNumber + 1,
+          weight: lastSet?.weight ?? 0,
+          reps: lastSet?.reps ?? 0,
+          status: "pending",
+          completedAt: null,
+          notes: null,
+          clientId: newClientId,
+          side: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        const updated = { ...prev, [exerciseId]: [...existingSets, newSet] };
         saveDraft(updated);
         return updated;
       });
@@ -589,25 +579,12 @@ export default function SessionPage({
         }
       }
 
-      // Persist to DB
-      try {
-        await upsertSet({
-          sessionExerciseId: exerciseId,
-          sessionId,
-          setNumber: newSet.setNumber,
-          weight: newSet.weight,
-          reps: newSet.reps,
-          status: "pending",
-          completedAt: null,
-          notes: null,
-          clientId: newClientId,
-          side: null,
-        });
-      } catch {
-        // Non-critical: draft will sync later
-      }
+      // pending セットは DB への事前 INSERT を行わない。
+      // handleSetComplete が完了時に単一の upsert で INSERT/UPDATE を担当する。
+      // 事前 INSERT すると (session_exercise_id, set_number) の一意制約と
+      // 競合する可能性があるため廃止。
     },
-    [setsMap, sessionId, session, saveDraft]
+    [sessionId, session, saveDraft]
   );
 
   // ---- Timer callbacks ----
@@ -644,6 +621,7 @@ export default function SessionPage({
   const handleTimerFinish = useCallback(
     async (finished: TimerState) => {
       setTimerState(finished);
+      setContextTimerState(finished);
       try {
         await deleteDraftTimer(sessionId);
         const dbTimer = await getRunningTimer(sessionId);
@@ -653,9 +631,12 @@ export default function SessionPage({
       } catch {
         // Non-critical
       }
-      setTimeout(() => setTimerState(null), 3000);
+      setTimeout(() => {
+        setTimerState(null);
+        setContextTimerState(null);
+      }, 3000);
     },
-    [sessionId]
+    [sessionId, setContextTimerState]
   );
 
   // ---- Complete session ----
@@ -836,7 +817,7 @@ export default function SessionPage({
               </div>
               <span
                 className="text-xs w-10 text-right"
-                style={{ color: "#8E8E93" }}
+                style={{ color: completed > 0 && completed === total ? "#CAFF4D" : "#8E8E93" }}
               >
                 {completed}/{total}
               </span>
@@ -861,6 +842,7 @@ export default function SessionPage({
           onDeleteExercise={() => handleDeleteExercise(ex.id)}
           onDeleteSet={(clientId) => handleDeleteSet(ex.id, clientId)}
           onAddSet={(nextSN) => handleAddSet(ex.id)}
+          showSaveAsPlan={!isPastSession}
         />
       ))}
 
@@ -881,8 +863,7 @@ export default function SessionPage({
             session.title,
             session.date,
             exercises,
-            setsMap,
-            categoriesMap
+            setsMap
           )}
           label="記録をChatGPTにコピー"
           className="w-full py-3 rounded-xl text-sm font-medium transition-colors"

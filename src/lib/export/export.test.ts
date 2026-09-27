@@ -22,6 +22,7 @@ const baseSession: ExportSession = {
         restSeconds: 150,
         skipped: false,
         notes: "左側が先に限界。痛みなし。",
+        isDuration: false,
       },
       sets: [
         { setNumber: 1, weight: 60, reps: 8, status: "completed", notes: null, side: null },
@@ -45,6 +46,7 @@ const baseSession: ExportSession = {
         restSeconds: 90,
         skipped: false,
         notes: null,
+        isDuration: false,
       },
       sets: [
         {
@@ -117,6 +119,7 @@ describe("generateChatGPTText", () => {
             restSeconds: 90,
             skipped: true,
             notes: null,
+            isDuration: false,
           },
           sets: [],
         },
@@ -138,6 +141,7 @@ describe("generateChatGPTText", () => {
             restSeconds: 120,
             skipped: false,
             notes: null,
+            isDuration: false,
           },
           sets: [
             { setNumber: 1, weight: 80, reps: 10, status: "completed", notes: null, side: null },
@@ -175,6 +179,31 @@ describe("generateChatGPTText", () => {
     expect(text).toContain("全体メモ：");
   });
 
+  it("shows minutes for duration exercises", () => {
+    const withDuration: ExportSession = {
+      ...baseSession,
+      exercises: [
+        {
+          exercise: {
+            exerciseName: "傾斜ウォーキング",
+            plannedSets: 1,
+            plannedRepsTarget: { min: 0, max: 0 },
+            restSeconds: 1,
+            skipped: false,
+            notes: null,
+            isDuration: true,
+          },
+          sets: [
+            { setNumber: 1, weight: 0, reps: 30, status: "completed", notes: null, side: null },
+          ],
+        },
+      ],
+    };
+    const text = generateChatGPTText(withDuration);
+    expect(text).toContain("1セット目：30分");
+    expect(text).not.toContain("0kg × 30回");
+  });
+
   it("shows side label for one-arm sets", () => {
     const withSide: ExportSession = {
       ...baseSession,
@@ -187,6 +216,7 @@ describe("generateChatGPTText", () => {
             restSeconds: 60,
             skipped: false,
             notes: null,
+            isDuration: false,
           },
           sets: [
             { setNumber: 1, weight: 15, reps: 12, status: "completed", notes: null, side: "L" },

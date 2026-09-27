@@ -4,7 +4,6 @@ import { useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { useTimerContext } from "@/context/TimerContext";
 import { IntervalTimer } from "@/components/training/IntervalTimer";
-import { skipTimer } from "@/lib/timer";
 import type { TimerState } from "@/lib/timer";
 
 export function GlobalTimerOverlay() {
@@ -32,8 +31,8 @@ export function GlobalTimerOverlay() {
     [setTimerState]
   );
 
-  // セッション画面には専用の IntervalTimer があるので二重表示しない
-  if (pathname.startsWith("/session/")) return null;
+  // セッション画面・今日画面には専用の IntervalTimer があるので二重表示しない
+  if (pathname.startsWith("/session/") || pathname === "/today") return null;
   if (!timerState || timerState.status !== "running") return null;
 
   return (

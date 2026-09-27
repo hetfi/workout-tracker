@@ -30,6 +30,7 @@ import { createTimerState } from "@/lib/timer";
 import { getIntervalEnabled } from "@/lib/storage/localSettings";
 import { IntervalTimer } from "@/components/training/IntervalTimer";
 import type { TimerState } from "@/lib/timer";
+import { useTimerContext } from "@/context/TimerContext";
 import { buildExercisePreset } from "@/lib/preset";
 import {
   CATEGORY_ORDER,
@@ -41,6 +42,7 @@ import type {
   WorkoutSet,
   WorkoutSessionExercise,
   SaveStatus,
+  LocalDraftSet,
 } from "@/domain/types";
 
 interface TodayViewProps {
@@ -62,6 +64,14 @@ export function TodayView({
 }: TodayViewProps) {
   const router = useRouter();
   const { showToast } = useToast();
+  const {
+    timerState,
+    setTimerState: setContextTimerState,
+    exerciseName: activeExerciseName,
+    setExerciseName: setContextExerciseName,
+    setSoundEnabled: setContextSoundEnabled,
+    setVibrationEnabled: setContextVibrationEnabled,
+  } = useTimerContext();
 
   const [exercises, setExercises] = useState<WorkoutSessionExercise[]>([]);
   const [setsMap, setSetsMap] = useState<Record<string, WorkoutSet[]>>({});
@@ -69,12 +79,19 @@ export function TodayView({
   const [loading, setLoading] = useState(true);
   /** sessionExerciseId → MuscleCategory */
   const [categoriesMap, setCategoriesMap] = useState<Record<string, MuscleCategory>>({});
-  const [timerState, setTimerState] = useState<TimerState | null>(null);
-  const [activeExerciseName, setActiveExerciseName] = useState("");
+  // timerState と activeExerciseName は TimerContext から直接取得（ローカル state なし）。
+  // これによりページ遷移時も context の値が失われず、/today 再訪時もタイマーが復元される。
   const [settings, setSettings] = useState({ soundEnabled: true, vibrationEnabled: true });
   // セッションIDごとに in_progress に戻したかどうかを追跡（1回だけ更新する）
   const reopenedSessions = useRef<Set<string>>(new Set());
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ---- ユーザー設定をグローバルコンテキストに同期 ----
+  // timerState / exerciseName は context を直接使うため useEffect 不要。
+  useEffect(() => {
+    setContextSoundEnabled(settings.soundEnabled);
+    setContextVibrationEnabled(settings.vibrationEnabled);
+  }, [settings.soundEnabled, settings.vibrationEnabled, setContextSoundEnabled, setContextVibrationEnabled]);
 
   // ---- Load all exercises + sets across all sessions ----
   useEffect(() => {
@@ -131,12 +148,35 @@ export function TodayView({
           grouped[ex.id] = [...completed, ...pending.slice(0, 1)];
         }
 
+        // ドラフトをプリセット生成より先に読み込む。
+        // pending セットがある種目はプリセットをスキップしてドラフトを使うため。
+        const rawDrafts = await Promise.all(sessionIds.map(loadDraftSession));
+        const draftByExId: Record<string, LocalDraftSet[]> = {};
+        for (const draft of rawDrafts) {
+          if (!draft) continue;
+          for (const ds of draft.sets) {
+            if (!draftByExId[ds.sessionExerciseId]) draftByExId[ds.sessionExerciseId] = [];
+            draftByExId[ds.sessionExerciseId].push(ds);
+          }
+        }
+
         // 片側種目は DB の stale data に左右されないよう常に L+R 構造を再構築する。
+        // ただし、ドラフトに L/R の pending セットがある場合はドラフトを優先し再構築をスキップ
+        // （セット削除などユーザー操作の結果をドラフトから復元するため）。
         // 通常種目は DB にセットがない場合だけプリセット生成。
         const exercisesNeedingPresets = enrichedExercises.filter(
-          (ex) => ex.isOneArm ? !ex.isDuration : grouped[ex.id].length === 0
+          (ex) => ex.isOneArm
+            ? !ex.isDuration &&
+              !draftByExId[ex.id]?.some(
+                (s) => s.status === "pending" && (s.side === "L" || s.side === "R")
+              )
+            : grouped[ex.id].length === 0 &&
+              !draftByExId[ex.id]?.some((s) => s.status === "pending")
         );
-        const prevDataMap = await getPreviousSessionDataBatch(exercisesNeedingPresets);
+        // 再構築した片側種目の effectiveSetCount を記録し、
+        // ドラフトマージ時に範囲外の stale pending を除外するために使用する
+        const rebuiltOneArmMaxSN: Record<string, number> = {};
+        const prevDataMap = await getPreviousSessionDataBatch(exercisesNeedingPresets, todayStr);
         for (const ex of exercisesNeedingPresets) {
           const prev = prevDataMap.get(ex.exerciseName) ?? null;
 
@@ -150,7 +190,14 @@ export function TodayView({
             const prevCompleted = prev?.sets.filter((s) => s.status === "completed") ?? [];
             const uniqueSetNums = new Set(prevCompleted.map((s) => s.setNumber)).size;
             const historySetCount = uniqueSetNums > 0 ? uniqueSetNums : ex.plannedSets;
-            const preset = buildExercisePreset({ ...ex, plannedSets: historySetCount }, prev);
+            // 現セッションに完了セットがある場合は最大完了番号を上限にする。
+            // これにより、ユーザーが削除した高番号セットがリロード後に復活するのを防ぐ。
+            const maxCompletedSetNum = completedSets.length > 0
+              ? Math.max(...completedSets.map((s) => s.setNumber))
+              : 0;
+            const effectiveSetCount = maxCompletedSetNum > 0 ? maxCompletedSetNum : historySetCount;
+            rebuiltOneArmMaxSN[ex.id] = effectiveSetCount;
+            const preset = buildExercisePreset({ ...ex, plannedSets: effectiveSetCount }, prev);
             const rebuilt: WorkoutSet[] = [];
             for (const p of preset.sets) {
               for (const side of ["L", "R"] as const) {
@@ -159,7 +206,9 @@ export function TodayView({
                 );
                 if (existing) {
                   rebuilt.push(existing);
-                } else {
+                } else if (p.setNumber > maxCompletedSetNum) {
+                  // 完了済みより大きい setNumber だけ pending を生成する。
+                  // maxCompletedSetNum 以下の "ギャップ" には pending を作らない（ゴースト防止）。
                   const clientId = newId();
                   rebuilt.push({
                     id: clientId,
@@ -206,13 +255,12 @@ export function TodayView({
           }
         }
 
-        // IndexedDB のドラフトをマージ（並列）
-        const drafts = await Promise.all(sessionIds.map(loadDraftSession));
-        for (const draft of drafts) {
-          if (!draft) continue;
-          for (const draftSet of draft.sets) {
-            const exId = draftSet.sessionExerciseId;
-            if (!grouped[exId]) continue;
+        // ドラフトのマージ:
+        // - 既存セット（DB 由来）: clientId 一致 → weight/reps/status 等を上書き
+        // - DB にない pending セット（追加済みで未完了のまま離脱）: grouped に追加して復元
+        for (const [exId, draftSets] of Object.entries(draftByExId)) {
+          if (!grouped[exId]) continue;
+          for (const draftSet of draftSets) {
             const idx = grouped[exId].findIndex(
               (s) => s.clientId === draftSet.clientId
             );
@@ -222,7 +270,73 @@ export function TodayView({
                 ...draftSet,
                 side: draftSet.side ?? null,
               };
+            } else if (draftSet.status === "pending") {
+              // 再構築済み片側種目で effectiveSetCount を超える pending は stale → スキップ
+              const maxSN = rebuiltOneArmMaxSN[exId];
+              if (maxSN !== undefined && draftSet.setNumber > maxSN) continue;
+              // 同じ setNumber+side スロットがすでに存在する場合は重複追加しない
+              const hasSameSlot = grouped[exId].some(
+                (s) =>
+                  s.setNumber === draftSet.setNumber &&
+                  (s.side ?? null) === (draftSet.side ?? null)
+              );
+              if (!hasSameSlot) {
+                const ex = enrichedExercises.find((e) => e.id === exId);
+                if (!ex) continue;
+                grouped[exId].push({
+                  id: draftSet.clientId,
+                  userId: "",
+                  sessionExerciseId: exId,
+                  sessionId: ex.sessionId,
+                  setNumber: draftSet.setNumber,
+                  weight: draftSet.weight,
+                  reps: draftSet.reps,
+                  status: "pending",
+                  completedAt: null,
+                  notes: draftSet.notes ?? null,
+                  clientId: draftSet.clientId,
+                  side: draftSet.side ?? null,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                });
+              }
             }
+          }
+        }
+
+        // 片側種目で side=null の pending セットは切り替え前の旧データなので除去する
+        for (const ex of enrichedExercises) {
+          if (ex.isOneArm && grouped[ex.id]) {
+            grouped[ex.id] = grouped[ex.id].filter(
+              (s) => !(s.status === "pending" && s.side === null)
+            );
+          }
+        }
+
+        // 片側種目 クリーンアップ（2段階フィルタ）:
+        // 1. planned_sets を超える pending: handleDeletePendingOneArmSlot が更新した DB 値を根拠に除去
+        // 2. maxCompletedSetNum 以下の pending（ギャップ）: 完了済みより小さい pending は
+        //    すでに削除された stale スロットなので除去
+        for (const ex of enrichedExercises) {
+          if (!ex.isOneArm || !grouped[ex.id]) continue;
+          // フィルタ 1: planned_sets 超え
+          grouped[ex.id] = grouped[ex.id].filter(
+            (s) =>
+              s.status === "completed" ||
+              s.side === null ||
+              s.setNumber <= ex.plannedSets
+          );
+          // フィルタ 2: 完了済み最大 setNumber 以下のギャップ pending
+          const maxCompletedSN = grouped[ex.id]
+            .filter((s) => s.status === "completed")
+            .reduce((mx, s) => Math.max(mx, s.setNumber), 0);
+          if (maxCompletedSN > 0) {
+            grouped[ex.id] = grouped[ex.id].filter(
+              (s) =>
+                s.status === "completed" ||
+                s.side === null ||
+                s.setNumber > maxCompletedSN
+            );
           }
         }
 
@@ -310,9 +424,9 @@ export function TodayView({
           side: completedSet.side,
         });
 
-        // セットが完了したセッションを in_progress に戻す（1セッション1回だけ）
+        // セットが完了したセッションを in_progress に戻す（完了時のみ、1セッション1回だけ）
         const ex = exercises.find((e) => e.id === exerciseId);
-        if (ex && !reopenedSessions.current.has(ex.sessionId)) {
+        if (ex && completedSet.status === "completed" && !reopenedSessions.current.has(ex.sessionId)) {
           reopenedSessions.current.add(ex.sessionId);
           try {
             await updateSession(ex.sessionId, {
@@ -327,8 +441,8 @@ export function TodayView({
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2000);
 
-        // インターバルタイマーを起動（設定がオンの場合のみ）
-        if (ex && getIntervalEnabled()) {
+        // インターバルタイマーを起動（完了時かつ設定がオンの場合のみ）
+        if (ex && completedSet.status === "completed" && getIntervalEnabled()) {
           const currentSets = setsMap[exerciseId] ?? [];
           const pendingSets = currentSets.filter(
             (s) =>
@@ -343,8 +457,8 @@ export function TodayView({
               nextSetNumber: nextSet.setNumber,
               durationSeconds: ex.restSeconds,
             });
-            setTimerState(state);
-            setActiveExerciseName(ex.exerciseName);
+            setContextTimerState(state);
+            setContextExerciseName(ex.exerciseName);
             try {
               await createTimer(state);
               await saveDraftTimer({
@@ -368,7 +482,7 @@ export function TodayView({
         showToast("セットの保存に失敗しました", "error");
       }
     },
-    [saveDraft, showToast, exercises, setsMap]
+    [saveDraft, showToast, exercises, setsMap, setContextTimerState, setContextExerciseName]
   );
 
   const handleSetsUpdate = useCallback(
@@ -419,7 +533,7 @@ export function TodayView({
 
   // ---- Timer callbacks ----
   const handleTimerUpdate = useCallback(async (updated: TimerState) => {
-    setTimerState(updated);
+    setContextTimerState(updated);
     try {
       await saveDraftTimer({
         sessionId: updated.sessionId,
@@ -435,16 +549,16 @@ export function TodayView({
     } catch {
       /* non-critical */
     }
-  }, []);
+  }, [setContextTimerState]);
 
   const handleTimerFinish = useCallback(async (finished: TimerState) => {
-    setTimerState(finished);
+    setContextTimerState(finished);
     try {
       await deleteDraftTimer(finished.sessionId);
     } catch {
       /* non-critical */
     }
-  }, []);
+  }, [setContextTimerState]);
 
   const handleDeleteExercise = useCallback(
     async (exerciseId: string) => {
@@ -472,13 +586,14 @@ export function TodayView({
           updated[exerciseId] = (prev[exerciseId] ?? []).filter(
             (s) => s.clientId !== clientId
           );
+          saveDraft(updated);
           return updated;
         });
       } catch {
         showToast("セットの削除に失敗しました", "error");
       }
     },
-    [showToast]
+    [showToast, saveDraft]
   );
 
   const handleAddSet = useCallback(
@@ -521,11 +636,13 @@ export function TodayView({
           return updated;
         });
       } else {
+        // UUID は updater の外で生成（安定した値）。setNumber は updater の中で
+        // prev から計算することで、高速連打による重複 setNumber を防ぐ。
+        const clientId = newId();
         setSetsMap((prev) => {
           const currentSets = prev[exerciseId] ?? [];
           const maxSN = currentSets.reduce((mx, s) => Math.max(mx, s.setNumber), 0);
           const lastSet = currentSets[currentSets.length - 1];
-          const clientId = newId();
           const newSet: WorkoutSet = {
             id: clientId,
             userId: lastSet?.userId ?? "",
@@ -549,34 +666,22 @@ export function TodayView({
           saveDraft(updated);
           return updated;
         });
-        // 通常セットはDB保存（fire-and-forget）
-        const currentSets = setsMap[exerciseId] ?? [];
-        const maxSN = currentSets.reduce((mx, s) => Math.max(mx, s.setNumber), 0);
-        const clientId = newId();
-        try {
-          await upsertSet({
-            sessionExerciseId: exerciseId,
-            sessionId: ex?.sessionId ?? "",
-            setNumber: maxSN + 1,
-            weight: currentSets[currentSets.length - 1]?.weight ?? 0,
-            reps: currentSets[currentSets.length - 1]?.reps ?? 0,
-            status: "pending",
-            completedAt: null,
-            notes: null,
-            clientId,
-            side: null,
-          });
-        } catch {
-          /* non-critical */
-        }
+        // pending セットは DB への事前 INSERT を行わない。
+        // handleSetComplete が完了時に単一の upsert で INSERT を担当する。
+        // 事前 INSERT すると setsMap の clientId と DB の client_id が一致せず
+        // 完了時に (session_exercise_id, set_number) の一意制約違反が起きる。
       }
     },
-    [exercises, setsMap, saveDraft]
+    [exercises, saveDraft]
   );
 
   // ---- Complete ----
   const handleComplete = async () => {
-    const allSets = Object.values(setsMap).flat();
+    // categoryProgress と同じ範囲・同じフィルタで集計し、ステータスバーと数値を一致させる
+    const allSets = exercises.flatMap((ex) => {
+      const sets = setsMap[ex.id] ?? [];
+      return ex.isOneArm ? sets.filter((s) => s.side !== null) : sets;
+    });
     const completedCount = allSets.filter((s) => s.status === "completed").length;
     const pendingCount = allSets.length - completedCount;
 
@@ -654,7 +759,9 @@ export function TodayView({
       const cat = categoriesMap[ex.id];
       if (!cat) continue;
       if (!result[cat]) result[cat] = { completed: 0, total: 0 };
-      const sets = setsMap[ex.id] ?? [];
+      const rawSets = setsMap[ex.id] ?? [];
+      // 片側種目の side=null pending セット（切り替え前の旧データ）はカウント対象外
+      const sets = ex.isOneArm ? rawSets.filter((s) => s.side !== null) : rawSets;
       result[cat]!.completed += sets.filter((s) => s.status === "completed").length;
       result[cat]!.total += sets.length;
     }
@@ -692,7 +799,10 @@ export function TodayView({
                 />
               </div>
               {/* セット数 */}
-              <span className="text-xs text-[#8E8E93] w-10 text-right shrink-0">
+              <span
+                className="text-xs w-10 text-right shrink-0"
+                style={{ color: completed > 0 && completed === total ? "#CAFF4D" : "#8E8E93" }}
+              >
                 {completed}/{total}
               </span>
             </div>
@@ -728,6 +838,7 @@ export function TodayView({
           onDeleteExercise={() => handleDeleteExercise(ex.id)}
           onDeleteSet={(clientId) => handleDeleteSet(ex.id, clientId)}
           onAddSet={(nextSN) => handleAddSet(ex.id, nextSN)}
+          showSaveAsPlan
         />
       ))}
 

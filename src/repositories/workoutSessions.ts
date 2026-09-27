@@ -125,7 +125,19 @@ export async function createSessionFromPlan(
   plan: WorkoutPlan,
   planExercises: WorkoutPlanExercise[]
 ): Promise<WorkoutSession> {
-  return createSessionFromPlanWithDuration(plan, planExercises, {});
+  const supabase = createClient();
+  const names = planExercises.map((pe) => pe.exerciseName);
+  const isDurationByName: Record<string, boolean> = {};
+  if (names.length > 0) {
+    const { data } = await supabase
+      .from("exercises")
+      .select("name, is_duration")
+      .in("name", names);
+    for (const ex of data ?? []) {
+      isDurationByName[ex.name as string] = Boolean(ex.is_duration);
+    }
+  }
+  return createSessionFromPlanWithDuration(plan, planExercises, isDurationByName);
 }
 
 /**
@@ -177,6 +189,7 @@ export async function createSessionFromPlanWithDuration(
       sort_order: pe.sortOrder,
       notes: pe.notes,
       is_one_arm: isOneArmByName[pe.exerciseName] ?? false,
+      is_duration: isDurationByName[pe.exerciseName] ?? false,
     }));
   if (exerciseRows.length > 0) {
     const { error: exError } = await supabase
@@ -290,6 +303,7 @@ export async function createSessionFromParsedExercises(
         sort_order: i,
         notes: ex.notes ?? null,
         is_one_arm: isOneArmByName[ex.name] ?? ex.isOneArm ?? false,
+        is_duration: ex.isDuration ?? false,
       };
     });
 
@@ -442,29 +456,55 @@ export async function upsertSet(
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
+  const row = {
+    user_id: user.id,
+    session_exercise_id: setData.sessionExerciseId,
+    session_id: setData.sessionId,
+    set_number: setData.setNumber,
+    weight: setData.weight,
+    reps: setData.reps,
+    status: setData.status,
+    completed_at: setData.completedAt,
+    notes: setData.notes,
+    client_id: setData.clientId,
+    side: setData.side ?? null,
+  };
+
   const { data, error } = await supabase
     .from("workout_sets")
-    .upsert(
-      {
-        user_id: user.id,
-        session_exercise_id: setData.sessionExerciseId,
-        session_id: setData.sessionId,
-        set_number: setData.setNumber,
-        weight: setData.weight,
-        reps: setData.reps,
-        status: setData.status,
-        completed_at: setData.completedAt,
-        notes: setData.notes,
-        client_id: setData.clientId,
-        side: setData.side ?? null,
-      },
-      { onConflict: "client_id", ignoreDuplicates: false }
-    )
+    .upsert(row, { onConflict: "client_id", ignoreDuplicates: false })
     .select()
     .single();
 
-  if (error) throw error;
-  return toSet(data);
+  if (!error) return toSet(data);
+
+  // Fallback for PostgreSQL unique_violation (code 23505):
+  // Triggered when the unique index on (session_exercise_id, set_number) has not yet
+  // been updated to include `side` (migration 005). In that case, saving the second
+  // side (e.g. R) of a one-arm pair conflicts with the first side (L) already in DB.
+  // Fix: look up the existing row by (session_exercise_id, set_number, side) and UPDATE it.
+  if ((error as { code?: string }).code === "23505" && setData.side) {
+    const { data: existing } = await supabase
+      .from("workout_sets")
+      .select("id, client_id")
+      .eq("session_exercise_id", setData.sessionExerciseId)
+      .eq("set_number", setData.setNumber)
+      .eq("side", setData.side)
+      .maybeSingle();
+
+    if (existing) {
+      const { data: updated, error: updateError } = await supabase
+        .from("workout_sets")
+        .update({ ...row, client_id: existing.client_id as string })
+        .eq("id", existing.id as string)
+        .select()
+        .single();
+      if (updateError) throw updateError;
+      return toSet(updated);
+    }
+  }
+
+  throw error;
 }
 
 /**

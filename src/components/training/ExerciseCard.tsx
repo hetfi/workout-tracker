@@ -31,6 +31,8 @@ interface ExerciseCardProps {
   onDeleteSet?: (clientId: string) => void;
   /** nextSetNumber: 片側モードで呼び出す際にExerciseCardが次のセット番号を渡す */
   onAddSet?: (nextSetNumber?: number) => void;
+  /** 今日のセッションのみ true — "予定として保存" ボタンを表示する */
+  showSaveAsPlan?: boolean;
 }
 
 // --- One-arm row sub-component ---
@@ -43,6 +45,7 @@ interface OneArmSetRowProps {
   defaultReps: number;
   isDuration?: boolean;
   onTap: () => void;
+  onQuickComplete?: () => void;
   onDelete?: () => void;
 }
 
@@ -54,6 +57,7 @@ function OneArmSetRow({
   defaultReps,
   isDuration = false,
   onTap,
+  onQuickComplete,
   onDelete,
 }: OneArmSetRowProps) {
   const isCompleted = set?.status === "completed";
@@ -62,74 +66,86 @@ function OneArmSetRow({
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={onTap}
+      {/* Row container (holds background/border styling) */}
+      <div
         className={cn(
-          "flex items-center flex-1",
-          "rounded-xl px-4 py-3 gap-3",
+          "flex items-center flex-1 rounded-xl overflow-hidden",
           "transition-all duration-200",
-          "touch-manipulation select-none",
-          "text-left",
           isCompleted
             ? "bg-[#CAFF4D]/10 border border-[#CAFF4D]/30"
-            : "bg-white/[0.06] border border-white/[0.08] active:bg-white/[0.1]"
+            : "bg-white/[0.06] border border-white/[0.08]"
         )}
-        aria-label={
-          isDuration
-            ? `${setNumber}セット目 ${side}: ${reps}分 ${isCompleted ? "完了" : "未完了"}`
-            : `${setNumber}セット目 ${side}: 重量${weight}kg 回数${reps}回 ${isCompleted ? "完了" : "未完了"}`
-        }
       >
-        {/* Set number + side */}
-        <span
+        {/* Main tappable area: opens picker */}
+        <button
+          onClick={onTap}
           className={cn(
-            "text-sm font-medium w-8 text-center shrink-0",
-            isCompleted ? "text-[#CAFF4D]" : "text-[#8E8E93]"
+            "flex items-center flex-1 gap-3",
+            "pl-4 py-3",
+            "touch-manipulation select-none text-left cursor-pointer",
+            !isCompleted && "hover:bg-white/[0.06] active:bg-white/[0.1]"
           )}
+          aria-label={
+            isDuration
+              ? `${setNumber}セット目 ${side}: ${reps}分 - タップして編集`
+              : `${setNumber}セット目 ${side}: 重量${weight}kg 回数${reps}回 - タップして編集`
+          }
         >
-          {setNumber}
-          <span className="font-bold">{side}</span>
-        </span>
+          {/* Set number + side */}
+          <span
+            className={cn(
+              "text-sm font-medium w-8 text-center shrink-0",
+              isCompleted ? "text-[#CAFF4D]" : "text-[#8E8E93]"
+            )}
+          >
+            {setNumber}
+            <span className="font-bold">{side}</span>
+          </span>
 
-        {/* Values */}
-        <div className="flex-1 flex items-baseline gap-2 whitespace-nowrap overflow-hidden">
-          {isDuration ? (
-            <span
-              className={cn(
-                "text-xl font-bold tabular-nums",
-                isCompleted ? "text-[#CAFF4D]" : "text-white"
-              )}
-            >
-              {reps > 0 ? reps : "—"}
-              <span className="text-sm font-normal ml-0.5">分</span>
-            </span>
-          ) : (
-            <>
+          {/* Values */}
+          <div className="flex-1 flex items-baseline gap-2 whitespace-nowrap overflow-hidden">
+            {isDuration ? (
               <span
                 className={cn(
                   "text-xl font-bold tabular-nums",
                   isCompleted ? "text-[#CAFF4D]" : "text-white"
                 )}
               >
-                {weight}
-                <span className="text-sm font-normal ml-0.5">kg</span>
+                {reps > 0 ? reps : "—"}
+                <span className="text-sm font-normal ml-0.5">分</span>
               </span>
-              <span className="text-[#8E8E93]">×</span>
-              <span
-                className={cn(
-                  "text-xl font-bold tabular-nums",
-                  isCompleted ? "text-[#CAFF4D]" : "text-white"
-                )}
-              >
-                {reps}
-                <span className="text-sm font-normal ml-0.5">回</span>
-              </span>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <span
+                  className={cn(
+                    "text-xl font-bold tabular-nums",
+                    isCompleted ? "text-[#CAFF4D]" : "text-white"
+                  )}
+                >
+                  {weight}
+                  <span className="text-sm font-normal ml-0.5">kg</span>
+                </span>
+                <span className="text-[#8E8E93]">×</span>
+                <span
+                  className={cn(
+                    "text-xl font-bold tabular-nums",
+                    isCompleted ? "text-[#CAFF4D]" : "text-white"
+                  )}
+                >
+                  {reps}
+                  <span className="text-sm font-normal ml-0.5">回</span>
+                </span>
+              </>
+            )}
+          </div>
+        </button>
 
-        {/* Status badge */}
-        <div className="shrink-0">
+        {/* Status badge: tap to quick complete/uncomplete */}
+        <button
+          onClick={onQuickComplete ?? onTap}
+          className="shrink-0 pr-4 pl-2 py-3 touch-manipulation cursor-pointer hover:bg-white/[0.06] active:opacity-60 transition-all"
+          aria-label={isCompleted ? "完了を解除する" : "完了にする"}
+        >
           {isCompleted ? (
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#CAFF4D] text-black text-sm font-bold">
               ✓
@@ -139,8 +155,8 @@ function OneArmSetRow({
               →
             </span>
           )}
-        </div>
-      </button>
+        </button>
+      </div>
 
       {/* Delete button */}
       {onDelete && (
@@ -177,10 +193,12 @@ export function ExerciseCard({
   onDeleteExercise,
   onDeleteSet,
   onAddSet,
+  showSaveAsPlan = false,
 }: ExerciseCardProps) {
   // Normal-mode picker state
   const [pickerOpen, setPickerOpen] = useState(false);
   const [activeSetIndex, setActiveSetIndex] = useState<number | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // One-arm mode state
   const [isOneArmLocal, setIsOneArmLocal] = useState(sessionExercise.isOneArm);
@@ -275,11 +293,21 @@ export function ExerciseCard({
         )
       );
 
-      // ローカルのセット状態をリセット（ペンディングのみ残す、sideをnullに）
+      // ローカルのセット状態をリセット（互換セットを除いた pending のみ残す）
       const resetSets = sets
         .filter((s) => !incompatibleSets.some((r) => r.clientId === s.clientId))
         .map((s) => ({ ...s, status: "pending" as const, side: null }));
       onSetsUpdate(resetSets);
+      setDeletedOneArmSlots(new Set());
+    } else {
+      // 完了セットがない場合でも、切り替え後のモードと非互換な pending セットを除去する
+      // （片側→両側: L/R pending を除去 / 両側→片側: side=null pending を除去）
+      const cleaned = next
+        ? sets.filter((s) => s.side !== null)   // isOneArm になる → side=null を除去
+        : sets.filter((s) => s.side === null);  // 通常に戻る → L/R を除去
+      if (cleaned.length !== sets.length) {
+        onSetsUpdate(cleaned);
+      }
       setDeletedOneArmSlots(new Set());
     }
 
@@ -291,18 +319,61 @@ export function ExerciseCard({
       .eq("id", sessionExercise.id);
   }, [isOneArmLocal, sessionExercise.id, sets, onSetsUpdate]);
 
-  // Normal mode: tap set row
+  // Normal mode: tap set row (opens picker)
   const handleSetTap = useCallback((index: number) => {
     setActiveSetIndex(index);
     setPickerOpen(true);
   }, []);
 
-  // One-arm mode: tap L or R row
+  // Normal mode: tap status badge (quick complete/uncomplete without picker)
+  const handleQuickComplete = useCallback(
+    (index: number) => {
+      const s = sets[index];
+      const updated: WorkoutSet =
+        s.status === "completed"
+          ? { ...s, status: "pending", completedAt: null }
+          : { ...s, status: "completed", completedAt: new Date().toISOString() };
+      onSetComplete(updated);
+    },
+    [sets, onSetComplete]
+  );
+
+  // One-arm mode: tap L or R row (opens picker)
   const handleOneArmTap = useCallback((setNumber: number, side: "L" | "R") => {
     setActiveSetNumber(setNumber);
     setActiveSide(side);
     setPickerOpen(true);
   }, []);
+
+  // One-arm mode: tap status badge (quick complete/uncomplete without picker)
+  const handleQuickCompleteOneArm = useCallback(
+    (n: number, side: "L" | "R") => {
+      const existingSet = sets.find((s) => s.setNumber === n && s.side === side);
+      const presetSet = sets.find((s) => s.setNumber === n) ?? sets[0];
+      if (existingSet?.status === "completed") {
+        onSetComplete({ ...existingSet, status: "pending", completedAt: null });
+      } else {
+        const clientId = existingSet?.clientId ?? crypto.randomUUID();
+        onSetComplete({
+          id: existingSet?.id ?? clientId,
+          userId: presetSet?.userId ?? "",
+          sessionExerciseId: sessionExercise.id,
+          sessionId: presetSet?.sessionId ?? sessionExercise.sessionId,
+          setNumber: n,
+          weight: existingSet?.weight ?? presetSet?.weight ?? 0,
+          reps: existingSet?.reps ?? presetSet?.reps ?? 0,
+          status: "completed",
+          completedAt: new Date().toISOString(),
+          notes: null,
+          clientId,
+          side,
+          createdAt: existingSet?.createdAt ?? new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    },
+    [sets, sessionExercise.id, sessionExercise.sessionId, onSetComplete]
+  );
 
   // Unified complete handler
   const handleComplete = useCallback(
@@ -366,6 +437,37 @@ export function ExerciseCard({
     ]
   );
 
+  // 通常モード: 重量・回数を pending のまま保存（完了しない）
+  const handleSaveAsPlan = useCallback(
+    (weight: number, reps: number) => {
+      if (activeSetIndex === null) return;
+      const updated = sets.map((s, i) =>
+        i === activeSetIndex ? { ...s, weight, reps } : s
+      );
+      onSetsUpdate(updated);
+      setPickerOpen(false);
+      setActiveSetIndex(null);
+    },
+    [activeSetIndex, sets, onSetsUpdate]
+  );
+
+  // 片側モード: 該当ペアの null-side pending スロットの重量・回数を更新
+  const handleSaveAsPlanOneArm = useCallback(
+    (weight: number, reps: number) => {
+      if (activeSetNumber === null) return;
+      const updated = sets.map((s) =>
+        s.setNumber === activeSetNumber && s.side === null && s.status === "pending"
+          ? { ...s, weight, reps }
+          : s
+      );
+      onSetsUpdate(updated);
+      setPickerOpen(false);
+      setActiveSetNumber(null);
+      setActiveSide(null);
+    },
+    [activeSetNumber, sets, onSetsUpdate]
+  );
+
   const handleApplyToRemaining = useCallback(
     (weight: number, reps: number) => {
       if (isOneArmLocal || activeSetIndex === null) return;
@@ -396,13 +498,10 @@ export function ExerciseCard({
   // isDuration 種目は常に 1 セット扱い
   const effectivePlannedSets = sessionExercise.isDuration ? 1 : sessionExercise.plannedSets;
 
-  // Progress counts
+  // All-sets-complete detection for lime border
   let completedCount: number;
   let totalCount: number;
-
   if (isOneArmLocal) {
-    // L と R をそれぞれ独立した1セットとして数える（右2・左2 = 合計4セット）。
-    // activePairNumbers がアクティブなペアを管理。deletedOneArmSlots は片側のみ削除中のスロット。
     completedCount = sets.filter(
       (s) =>
         (s.side === "L" || s.side === "R") &&
@@ -415,7 +514,6 @@ export function ExerciseCard({
     completedCount = sets.filter((s) => s.status === "completed").length;
     totalCount = sets.length;
   }
-
   const isAllDone = completedCount === totalCount && totalCount > 0;
 
   // Normal mode picker values
@@ -445,108 +543,133 @@ export function ExerciseCard({
       <div>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-          {/* 部位ラベル */}
-          {muscleCategory && (
-            <span
-              className="text-xs font-medium"
-              style={{ color: CATEGORY_COLORS[muscleCategory] }}
-            >
-              {CATEGORY_LABELS[muscleCategory]}
-            </span>
-          )}
-          <div className="flex items-start gap-2 flex-wrap">
-            <h3 className="font-semibold text-lg text-white break-words min-w-0">
-              {sessionExercise.exerciseName}
-            </h3>
-            {/* One-arm toggle — checkbox style */}
-            <button
-              onClick={handleToggleOneArm}
-              className="shrink-0 flex items-center gap-1 mt-0.5"
-              aria-pressed={isOneArmLocal}
-            >
-              {/* checkbox box */}
+          {/* 部位ラベル + 片側ずつ表示 */}
+          <div className="flex items-center gap-2">
+            {muscleCategory && (
               <span
-                className="w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold shrink-0"
-                style={
-                  isOneArmLocal
-                    ? { backgroundColor: "#CAFF4D", color: "#0D0D0F" }
-                    : { border: "1.5px solid #48484A", backgroundColor: "transparent" }
-                }
+                className="text-xs font-medium"
+                style={{ color: CATEGORY_COLORS[muscleCategory] }}
               >
-                {isOneArmLocal ? "✓" : ""}
+                {CATEGORY_LABELS[muscleCategory]}
               </span>
-              <span className="text-xs" style={{ color: isOneArmLocal ? "#CAFF4D" : "#8E8E93" }}>
-                片側ずつ
-              </span>
-            </button>
+            )}
+            {isOneArmLocal && (
+              <span className="text-xs text-[#8E8E93]">片側ずつ実施</span>
+            )}
           </div>
+          <h3 className="font-semibold text-lg text-white break-words min-w-0">
+            {sessionExercise.exerciseName}
+          </h3>
           </div>
 
-          {/* Progress badge + reorder + delete */}
-        <div className="shrink-0 flex items-center gap-1">
-          {/* 並び替えボタン */}
-          {(onMoveUp || onMoveDown) && (
-            <div className="flex flex-col">
-              <button
-                onClick={onMoveUp}
-                disabled={isFirst}
-                className={cn(
-                  "w-7 h-6 flex items-center justify-center rounded-t transition-colors",
-                  isFirst
-                    ? "text-white/[0.15] cursor-default"
-                    : "text-[#8E8E93] hover:text-white hover:bg-white/[0.08]"
-                )}
-                aria-label="上に移動"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="18 15 12 9 6 15"/>
-                </svg>
-              </button>
-              <button
-                onClick={onMoveDown}
-                disabled={isLast}
-                className={cn(
-                  "w-7 h-6 flex items-center justify-center rounded-b transition-colors",
-                  isLast
-                    ? "text-white/[0.15] cursor-default"
-                    : "text-[#8E8E93] hover:text-white hover:bg-white/[0.08]"
-                )}
-                aria-label="下に移動"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
-            </div>
-          )}
-          {onDeleteExercise && (
-            <button
-              onClick={() => {
-                if (confirm(`「${sessionExercise.exerciseName}」を削除しますか？`)) {
-                  onDeleteExercise();
-                }
-              }}
-              className="w-8 h-8 flex items-center justify-center rounded-full text-[#8E8E93] hover:text-red-400 hover:bg-white/[0.08] transition-colors"
-              aria-label="種目を削除"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
-                <path d="M10 11v6M14 11v6"/>
-                <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
-              </svg>
-            </button>
-          )}
-          <div
+          {/* 完了バッジ (invisible で常にスペース確保) + ···メニュー */}
+        <div className="shrink-0 flex items-center gap-1.5">
+          <span
             className={cn(
-              "shrink-0 flex flex-col items-center justify-center",
-              "h-10 w-10 rounded-full text-sm font-bold",
-              isAllDone
-                ? "bg-[#CAFF4D]/20 text-[#CAFF4D]"
-                : "bg-white/[0.08] text-white"
+              "px-2.5 py-0.5 rounded-full bg-[#CAFF4D]/10 text-[#CAFF4D] text-xs font-medium",
+              !isAllDone && "invisible"
             )}
           >
-            <span>{completedCount}/{totalCount}</span>
+            完了
+          </span>
+          {/* ··· more-options button + dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="w-8 h-8 flex items-center justify-center rounded-full text-[#8E8E93] hover:text-white hover:bg-white/[0.08] transition-colors"
+              aria-label="オプション"
+            >
+              <svg width="16" height="4" viewBox="0 0 16 4" fill="currentColor">
+                <circle cx="2" cy="2" r="1.5"/>
+                <circle cx="8" cy="2" r="1.5"/>
+                <circle cx="14" cy="2" r="1.5"/>
+              </svg>
+            </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 z-20 bg-[#3A3A3C] rounded-xl shadow-xl overflow-hidden min-w-[160px]">
+                  {/* 並び替えセクション */}
+                  {(onMoveUp || onMoveDown) && (
+                    <>
+                      <p className="px-4 pt-2.5 pb-1 text-[10px] font-medium text-[#8E8E93] uppercase tracking-wider">並び替え</p>
+                      <button
+                        onClick={() => { setMenuOpen(false); onMoveUp?.(); }}
+                        disabled={isFirst}
+                        className={cn(
+                          "flex items-center gap-2.5 w-full px-4 py-2.5 text-sm transition-colors",
+                          isFirst
+                            ? "text-white/25 cursor-default"
+                            : "text-white hover:bg-white/[0.08]"
+                        )}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="18 15 12 9 6 15"/>
+                        </svg>
+                        上に移動
+                      </button>
+                      <button
+                        onClick={() => { setMenuOpen(false); onMoveDown?.(); }}
+                        disabled={isLast}
+                        className={cn(
+                          "flex items-center gap-2.5 w-full px-4 py-2.5 text-sm transition-colors",
+                          isLast
+                            ? "text-white/25 cursor-default"
+                            : "text-white hover:bg-white/[0.08]"
+                        )}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                        下に移動
+                      </button>
+                      <div className="h-px bg-white/[0.08] mt-1" />
+                    </>
+                  )}
+                  {/* 設定セクション */}
+                  <p className="px-4 pt-2.5 pb-1 text-[10px] font-medium text-[#8E8E93] uppercase tracking-wider">設定</p>
+                  <button
+                    onClick={() => { setMenuOpen(false); void handleToggleOneArm(); }}
+                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm hover:bg-white/[0.08] transition-colors"
+                  >
+                    <span
+                      className="w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold shrink-0"
+                      style={
+                        isOneArmLocal
+                          ? { backgroundColor: "#CAFF4D", color: "#0D0D0F" }
+                          : { border: "1.5px solid #48484A", backgroundColor: "transparent" }
+                      }
+                    >
+                      {isOneArmLocal ? "✓" : ""}
+                    </span>
+                    <span style={{ color: isOneArmLocal ? "#CAFF4D" : "white" }}>片側ずつ実施</span>
+                  </button>
+                  {/* 削除セクション */}
+                  {onDeleteExercise && (
+                    <>
+                      <div className="h-px bg-white/[0.08] mt-1" />
+                      <button
+                        onClick={() => {
+                          setMenuOpen(false);
+                          if (confirm(`「${sessionExercise.exerciseName}」を削除しますか？`)) {
+                            onDeleteExercise();
+                          }
+                        }}
+                        className="flex items-center gap-2.5 w-full px-4 py-2.5 mb-1 text-sm text-red-400 hover:bg-white/[0.08] transition-colors"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"/>
+                          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                          <path d="M10 11v6M14 11v6"/>
+                          <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                        </svg>
+                        削除
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -593,6 +716,7 @@ export function ExerciseCard({
                   defaultReps={presetSet?.reps ?? 0}
                   isDuration={sessionExercise.isDuration}
                   onTap={() => handleOneArmTap(n, "L")}
+                  onQuickComplete={() => handleQuickCompleteOneArm(n, "L")}
                   onDelete={
                     onDeleteSet
                       ? lSet
@@ -617,6 +741,7 @@ export function ExerciseCard({
                   defaultReps={presetSet?.reps ?? 0}
                   isDuration={sessionExercise.isDuration}
                   onTap={() => handleOneArmTap(n, "R")}
+                  onQuickComplete={() => handleQuickCompleteOneArm(n, "R")}
                   onDelete={
                     onDeleteSet
                       ? rSet
@@ -641,6 +766,7 @@ export function ExerciseCard({
               displaySetNumber={i + 1}
               isDuration={sessionExercise.isDuration}
               onTap={() => handleSetTap(i)}
+              onQuickComplete={() => handleQuickComplete(i)}
               onDelete={onDeleteSet ? () => onDeleteSet(s.clientId) : undefined}
             />
           ))
@@ -658,6 +784,11 @@ export function ExerciseCard({
                 : 1;
               setActivePairNumbers((prev) => [...prev, nextSN]);
               onAddSet(nextSN);
+              // planned_sets を DB に更新し、リロード後のゴースト除去フィルタが正しく動くようにする
+              void createClient()
+                .from("workout_session_exercises")
+                .update({ planned_sets: nextSN })
+                .eq("id", sessionExercise.id);
             } else {
               onAddSet();
             }
@@ -685,6 +816,7 @@ export function ExerciseCard({
           largeStep={largeStep}
           onApplyToRemaining={handleApplyToRemaining}
           onComplete={handleComplete}
+          onSaveAsPlan={showSaveAsPlan ? handleSaveAsPlan : undefined}
           isLastSet={isLastPendingSet}
           isDuration={sessionExercise.isDuration}
         />
@@ -709,6 +841,7 @@ export function ExerciseCard({
           side={activeSide}
           onApplyToRemaining={handleOneArmApplyToRemaining}
           onComplete={handleComplete}
+          onSaveAsPlan={showSaveAsPlan ? handleSaveAsPlanOneArm : undefined}
           isLastSet={false}
           isDuration={sessionExercise.isDuration}
         />

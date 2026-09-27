@@ -73,11 +73,35 @@ function ImportPageInner() {
       );
 
       if (duplicate) {
-        const choice = window.confirm(
-          `「${workout.title}」（${workout.date}）は既に登録されています。\n\n「OK」で既存メニューを置き換え、「キャンセル」で別メニューとして保存します。`
-        );
-        if (choice) {
-          const { updatePlan } = await import("@/repositories/workoutPlans");
+        // 種目が残っているか確認（全削除済みの空プランはポップアップ不要）
+        const supabase = createClient();
+        const { data: sessionRow } = await supabase
+          .from("workout_sessions")
+          .select("id")
+          .eq("plan_id", duplicate.id)
+          .neq("status", "archived")
+          .limit(1)
+          .maybeSingle();
+
+        let sessionHasExercises = false;
+        if (sessionRow) {
+          const { count } = await supabase
+            .from("workout_session_exercises")
+            .select("id", { count: "exact", head: true })
+            .eq("session_id", sessionRow.id);
+          sessionHasExercises = (count ?? 0) > 0;
+        }
+
+        const { updatePlan } = await import("@/repositories/workoutPlans");
+        if (sessionHasExercises) {
+          const choice = window.confirm(
+            `「${workout.title}」（${workout.date}）は既に登録されています。\n\n「OK」で既存メニューを置き換え、「キャンセル」で別メニューとして保存します。`
+          );
+          if (choice) {
+            await updatePlan(duplicate.id, { status: "archived" });
+          }
+        } else {
+          // 種目が空のプランは静かにアーカイブして新規登録に進む
           await updatePlan(duplicate.id, { status: "archived" });
         }
       }

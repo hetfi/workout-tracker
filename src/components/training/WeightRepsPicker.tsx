@@ -24,6 +24,8 @@ interface WeightRepsPickerProps {
   onApplyToRemaining?: (weight: number, reps: number) => void;
   /** Called when user taps "セット完了" */
   onComplete: (weight: number, reps: number) => void;
+  /** Called when user taps "予定として保存" (today only — omit to hide the button) */
+  onSaveAsPlan?: (weight: number, reps: number) => void;
   /** Whether this is the last incomplete set */
   isLastSet?: boolean;
   /**
@@ -45,6 +47,7 @@ export function WeightRepsPicker({
   largeStep = 2.5,
   onApplyToRemaining,
   onComplete,
+  onSaveAsPlan,
   isLastSet = false,
   isDuration = false,
 }: WeightRepsPickerProps) {
@@ -327,30 +330,40 @@ export function WeightRepsPicker({
           )}
 
           <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={() => {
-                setWeight(0);
-                setWeightInput("0");
-                setReps(0);
-                setRepsInput("0");
-                setMinutes(0);
-                setMinutesInput("0");
-              }}
-              className="flex-1"
-            >
-              リセット
-            </Button>
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={() => isDuration ? onComplete(0, minutes) : onComplete(weight, reps)}
-              className="flex-2"
-            >
-              セット完了
-            </Button>
-          </div>
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => {
+                  setWeight(0);
+                  setWeightInput("0");
+                  setReps(0);
+                  setRepsInput("0");
+                  setMinutes(0);
+                  setMinutesInput("0");
+                }}
+                className="flex-1 whitespace-nowrap"
+              >
+                リセット
+              </Button>
+              {onSaveAsPlan && (
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={() => onSaveAsPlan(isDuration ? 0 : weight, isDuration ? minutes : reps)}
+                  className="flex-1 whitespace-nowrap"
+                >
+                  保存
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => isDuration ? onComplete(0, minutes) : onComplete(weight, reps)}
+                className="flex-[2]"
+              >
+                セット完了
+              </Button>
+            </div>
         </div>
       </div>
     </BottomSheet>

@@ -106,6 +106,7 @@ export default function CompletePage({
           restSeconds: ex.restSeconds,
           skipped: ex.skipped,
           notes: ex.notes,
+          isDuration: ex.isDuration,
         },
         sets: (setsMap[ex.id] ?? []).sort((a, b) => a.setNumber - b.setNumber),
       })),
@@ -190,11 +191,17 @@ export default function CompletePage({
               </div>
               {!ex.skipped && exSets.length > 0 && (
                 <div className="mt-1 space-y-0.5">
-                  {exSets.map((s) => (
-                    <p key={s.id} className="text-xs" style={{ color: "#8E8E93" }}>
-                      {s.setNumber}セット{s.side ? ` (${s.side})` : ""}: {s.weight}kg × {s.reps}回
-                    </p>
-                  ))}
+                  {exSets.map((s) => {
+                    const sideLabel = s.side ? ` (${s.side})` : "";
+                    const valueStr = ex.isDuration && s.weight === 0 && s.reps > 0
+                      ? `${s.reps}分`
+                      : `${s.weight}kg × ${s.reps}回`;
+                    return (
+                      <p key={s.id} className="text-xs" style={{ color: "#8E8E93" }}>
+                        {s.setNumber}セット{sideLabel}: {valueStr}
+                      </p>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -223,27 +223,33 @@ export default async function DayPage({ params }: PageProps) {
           if (!byCategory[ex.category]) byCategory[ex.category] = [];
           byCategory[ex.category].push(ex);
         }
-        const cats = CATEGORY_ORDER.filter((c) => byCategory[c]?.length > 0);
+        // mergedExercises の sort_order 順にカテゴリを並べる
+        const _seenCats = new Set<string>();
+        const cats: MuscleCategory[] = [];
+        for (const ex of mergedExercises) {
+          if (!_seenCats.has(ex.category)) {
+            _seenCats.add(ex.category);
+            cats.push(ex.category);
+          }
+        }
 
         // コピー用テキスト（各セットの詳細を含む）
         const copyText = [
           `📋 トレーニング記録｜${formatJapaneseDate(date)}`,
           title,
           "",
-          ...cats.flatMap((cat) => [
-            `【${CATEGORY_LABELS[cat]}】`,
-            ...byCategory[cat].flatMap((ex) => [
-              `・${ex.name}: ${ex.completedSets}セット${
-                ex.totalVolume > 0 ? ` / ${ex.totalVolume.toLocaleString()}kg` : ""
-              }`,
-              ...ex.sets.map((s) => {
-                const sideLabel = s.side ? `(${s.side}) ` : "";
-                const valueStr = ex.isDuration && s.weight === 0 && s.reps > 0
-                  ? `${s.reps}分`
-                  : `${s.weight}kg × ${s.reps}回`;
-                return `  ${s.setNumber}${sideLabel}: ${valueStr}`;
-              }),
-            ]),
+          // カテゴリグループ化をせず、メニューの sort_order 順に種目を並べる
+          ...mergedExercises.flatMap((ex) => [
+            `・${ex.name}: ${ex.completedSets}セット${
+              ex.totalVolume > 0 ? ` / ${ex.totalVolume.toLocaleString()}kg` : ""
+            }`,
+            ...ex.sets.map((s) => {
+              const sideLabel = s.side ? `(${s.side}) ` : "";
+              const valueStr = ex.isDuration && s.weight === 0 && s.reps > 0
+                ? `${s.reps}分`
+                : `${s.weight}kg × ${s.reps}回`;
+              return `  ${s.setNumber}${sideLabel}: ${valueStr}`;
+            }),
           ]),
         ].join("\n");
 
