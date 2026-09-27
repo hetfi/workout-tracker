@@ -9,6 +9,8 @@ import {
   formatTimerDisplay,
 } from "@/lib/timer";
 import type { TimerState } from "@/lib/timer";
+import { unlockAudio, playFinishBeep } from "@/lib/audio";
+import { requestNotificationPermission, showTimerNotification } from "@/lib/notification";
 
 interface IntervalTimerProps {
   timer: TimerState;
@@ -32,35 +34,21 @@ export function IntervalTimer({
   );
   const finishedRef = useRef(false);
   const timerRef = useRef(timer);
-  // Keep timerRef in sync with latest timer prop without triggering re-render
   useEffect(() => {
     timerRef.current = timer;
   });
 
-  const playFinishSound = useCallback(() => {
-    if (!soundEnabled) return;
-    try {
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.setValueAtTime(660, ctx.currentTime + 0.1);
-      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.2);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.5);
-    } catch {
-      // AudioContext not available (SSR or restricted)
+  // Request notification permission when timer first starts
+  useEffect(() => {
+    if (timer.status === "running") {
+      requestNotificationPermission().catch(() => {});
     }
-  }, [soundEnabled]);
+  }, [timer.status]);
 
   const triggerVibration = useCallback(() => {
     if (!vibrationEnabled) return;
     if ("vibrate" in navigator) {
-      navigator.vibrate([100, 50, 100]);
+      navigator.vibrate([100, 50, 100, 50, 100]);
     }
   }, [vibrationEnabled]);
 
@@ -75,24 +63,23 @@ export function IntervalTimer({
 
       if (snap.remainingSeconds === 0 && !finishedRef.current) {
         finishedRef.current = true;
-        playFinishSound();
+        playFinishBeep(soundEnabled);
         triggerVibration();
+        showTimerNotification(exerciseName, timerRef.current.nextSetNumber).catch(() => {});
         onFinish(skipTimer(timerRef.current));
       }
     };
 
-    tick(); // immediate
+    tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [timer.status, playFinishSound, triggerVibration, onFinish]);
+  }, [timer.status, soundEnabled, triggerVibration, onFinish, exerciseName]);
 
-  // Reset finishedRef when timer status is no longer running
+  // Reset finishedRef when timer is no longer running
   useEffect(() => {
     if (timer.status !== "running") {
       finishedRef.current = false;
     }
-    // Re-sync snapshot on external timer changes (e.g. +30/-30)
-    // The next tick (within 1s) will also sync, but we update eagerly here.
   }, [timer.endsAt, timer.status]);
 
   const isFinished =
@@ -101,6 +88,11 @@ export function IntervalTimer({
   if (isFinished) return null;
 
   const { remainingSeconds } = snapshot;
+
+  const handleUserAction = (fn: () => void) => {
+    unlockAudio(); // unlock AudioContext on user gesture
+    fn();
+  };
 
   return (
     <div
@@ -127,37 +119,28 @@ export function IntervalTimer({
       {/* Right: controls */}
       <div className="flex items-center gap-1">
         <button
-          onClick={() => {
-            const updated = adjustTimer(timer, -30, new Date());
-            onUpdate(updated);
-          }}
+          onClick={() => handleUserAction(() => onUpdate(adjustTimer(timer, -30, new Date())))}
           className="px-2 py-1 text-xs rounded-lg bg-white/20 hover:bg-white/30 active:bg-white/40 transition-colors"
           aria-label="30秒短縮"
         >
           -30
         </button>
         <button
-          onClick={() => {
-            const updated = adjustTimer(timer, 30, new Date());
-            onUpdate(updated);
-          }}
+          onClick={() => handleUserAction(() => onUpdate(adjustTimer(timer, 30, new Date())))}
           className="px-2 py-1 text-xs rounded-lg bg-white/20 hover:bg-white/30 active:bg-white/40 transition-colors"
           aria-label="30秒追加"
         >
           +30
         </button>
         <button
-          onClick={() => {
-            const reset = resetTimer(timer, new Date());
-            onUpdate(reset);
-          }}
+          onClick={() => handleUserAction(() => onUpdate(resetTimer(timer, new Date())))}
           className="px-2 py-1 text-xs rounded-lg bg-white/20 hover:bg-white/30 active:bg-white/40 transition-colors"
           aria-label="リセット"
         >
           ↺
         </button>
         <button
-          onClick={() => onFinish(skipTimer(timer))}
+          onClick={() => handleUserAction(() => onFinish(skipTimer(timer)))}
           className="px-2 py-1 text-xs rounded-lg bg-white/20 hover:bg-white/30 active:bg-white/40 transition-colors"
           aria-label="スキップ"
         >
