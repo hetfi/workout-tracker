@@ -96,7 +96,12 @@ export async function POST(request: Request): Promise<Response> {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error("[MCP] tool error:", msg);
-        return jsonRpcError(id, MCP_ERROR.INTERNAL_ERROR.code, "Tool execution failed");
+        // JSON-RPC error はChatGPTが "Resource not found" と表示するため、
+        // isError:true のツール結果として返すことでエラー内容を表示させる
+        return jsonRpc(id, {
+          content: [{ type: "text", text: `エラー: ${msg}` }],
+          isError: true,
+        });
       }
     }
 
